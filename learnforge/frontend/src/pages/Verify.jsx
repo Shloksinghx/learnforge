@@ -25,7 +25,7 @@ export default function Verify() {
             <dt>Issued</dt><dd>{fmt(cert.issuedAt)}</dd>
             <dt>Valid until</dt><dd>{fmt(cert.validUntil)}</dd>
           </dl>
-          <img src={`/api/public/certificates/${cert.code}/qr.png`} alt="QR code for this certificate" width="140" height="140" />
+             <img src={`${import.meta.env.VITE_API_URL || ''}/api/public/certificates/${cert.code}/qr.png`} alt="QR code for this certificate" width="140" height="140" />
         </div>
       )}
     </main>
