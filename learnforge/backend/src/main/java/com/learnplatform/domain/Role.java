@@ -1,5 +1,0 @@
-package com.learnplatform.domain;
-
-public enum Role {
-    SUPER_ADMIN, ORG_ADMIN, LND_MANAGER, TRAINER, CONTENT_MANAGER, LEARNER, EXAMINER, CERTIFICATION_AUTHORITY
-}

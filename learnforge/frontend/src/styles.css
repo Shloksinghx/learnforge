@@ -60,3 +60,37 @@ label.inline input, label.inline select { width: auto; }
 .cert dl { display: grid; grid-template-columns: max-content 1fr; gap: .4rem 1.2rem; }
 .cert dt { color: var(--muted); } .cert dd { margin: 0; font-weight: 600; }
 @media (prefers-reduced-motion: no-preference) { .chat { scroll-behavior: smooth; } }
+
+/* ---- LMS additions ---- */
+.tabs { display: flex; gap: .25rem; margin-right: auto; flex-wrap: wrap; }
+.tabs a { color: #ffffffcc; text-decoration: none; padding: .45rem .8rem; border-radius: 6px; font-weight: 600; font-size: .95rem; }
+.tabs a:hover { background: #ffffff1a; color: #fff; }
+.tabs a.active { background: var(--teal); color: #fff; }
+header.bar .brand { margin-right: 1rem; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1rem; margin: 1rem 0 2rem; }
+.stat span { color: var(--muted); font-size: .9rem; display: block; }
+.stat b { font: 700 2rem var(--serif); }
+.course { display: grid; gap: .4rem; align-content: start; text-decoration: none; color: inherit; }
+.course h3 a { color: var(--ink); text-decoration: none; }
+.course h3 a:hover { color: var(--teal); }
+.course .actions, .q .actions { display: flex; gap: .5rem; margin-top: .4rem; }
+.progress { height: 8px; background: var(--line); border-radius: 6px; overflow: hidden; min-width: 160px; }
+.progress i { display: block; height: 100%; background: var(--teal); }
+.grow { flex: 1; min-width: 200px; }
+.ok { color: var(--ok); font-weight: 600; } .bad { color: var(--bad); font-weight: 600; }
+.ghost-link { background: transparent; color: var(--teal); border: 1px solid var(--teal); }
+.ghost-link:hover { background: #0e6b731a; color: var(--teal-dark); }
+button.link { background: none; color: var(--ink); padding: 0; font: 600 1.05rem var(--sans); text-align: left; }
+button.link:hover { background: none; color: var(--teal); }
+ol.lessons { list-style: none; padding: 0; display: grid; gap: .6rem; }
+.lesson-body { white-space: pre-wrap; margin-top: .75rem; padding-top: .75rem; border-top: 1px solid var(--line); }
+.q { margin: 0 0 1rem; border: 1px solid var(--line); }
+.q legend { padding: 0 .4rem; }
+.opts { margin: .25rem 0 .5rem; padding-left: 1.4rem; }
+.opts li.correct { color: var(--ok); font-weight: 600; }
+.choice { display: flex; align-items: center; gap: .6rem; padding: .5rem .7rem; border: 1px solid var(--line); border-radius: 8px; margin: .4rem 0; font-weight: 500; cursor: pointer; }
+.choice input { width: auto; }
+.choice.correct { border-color: var(--ok); background: #1d7a4a14; }
+.choice.wrong { border-color: var(--bad); background: #b3372c14; }
+fieldset:disabled .choice { cursor: default; }
+@media (max-width: 760px) { header.bar { flex-wrap: wrap; } .tabs { order: 3; width: 100%; } }

@@ -14,10 +14,10 @@ public class Course {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
-
     @Column(name = "org_id") private UUID orgId;
     private String title;
     @Column(columnDefinition = "text") private String description;
+    private String category;
     private String status = "DRAFT";
     @Column(name = "created_at") private Instant createdAt;
 
