@@ -1,0 +1,49 @@
+package com.learnplatform.web;
+
+import com.learnplatform.config.CurrentUser;
+import com.learnplatform.domain.Persona;
+import com.learnplatform.repo.PersonaRepository;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import java.util.List;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/personas")
+public class PersonaController {
+    public record CreatePersona(@NotBlank String name, @NotBlank String profession, Integer age,
+                                String personality, String communication, String knowledgeLevel,
+                                String behaviour, String objections, @NotBlank String scenario,
+                                String mandatoryInfo, String prohibitedStatements) {}
+
+    private final PersonaRepository personas;
+
+    public PersonaController(PersonaRepository personas) {
+        this.personas = personas;
+    }
+
+    @GetMapping
+    public List<Persona> list() {
+        return personas.findByOrgIdOrderByCreatedAtDesc(CurrentUser.get().orgId());
+    }
+
+    @PostMapping
+    @PreAuthorize("hasAnyRole('ORG_ADMIN','LND_MANAGER','CONTENT_MANAGER','TRAINER')")
+    public Persona create(@Valid @RequestBody CreatePersona r) {
+        Persona p = new Persona();
+        p.setOrgId(CurrentUser.get().orgId());
+        p.setName(r.name());
+        p.setProfession(r.profession());
+        p.setAge(r.age());
+        p.setPersonality(r.personality());
+        p.setCommunication(r.communication());
+        p.setKnowledgeLevel(r.knowledgeLevel());
+        p.setBehaviour(r.behaviour());
+        p.setObjections(r.objections());
+        p.setScenario(r.scenario());
+        p.setMandatoryInfo(r.mandatoryInfo());
+        p.setProhibitedStatements(r.prohibitedStatements());
+        return personas.save(p);
+    }
+}
