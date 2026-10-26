@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { api } from '../api.js';
+import { api, session } from '../api.js';
+import { initials } from '../ui.js';
+import Icon from '../Icons.jsx';
+import ScoreRing from '../ScoreRing.jsx';
 
 const LABELS = {
   productKnowledge: 'Product knowledge', communication: 'Communication', questioning: 'Questioning',
@@ -18,6 +21,7 @@ export default function Simulation() {
   const [listening, setListening] = useState(false);
   const recRef = useRef(null);
   const endRef = useRef(null);
+  const me = initials(session.user?.fullName);
 
   useEffect(() => { api(`/api/simulations/${id}`).then(setSim).catch((e) => setErr(e.message)); }, [id]);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [sim?.turns?.length]);
@@ -67,17 +71,20 @@ export default function Simulation() {
   const ev = sim.evaluation;
 
   return (
-    <div className="sim">
+    <>
       <div className="row">
-        <Link to="/">Back</Link>
+        <Link to="/simulations">&larr; All simulations</Link>
         <label className="inline"><input type="checkbox" checked={voice} onChange={(e) => setVoice(e.target.checked)} /> Speak replies aloud</label>
       </div>
 
-      <div className="chat" aria-live="polite">
+      <div className="card chat" aria-live="polite">
         {sim.turns.map((t, i) => (
-          <div key={i} className={`bubble ${t.speaker === 'LEARNER' ? 'me' : 'them'}`}>{t.text}</div>
+          <div key={i} className={`msg ${t.speaker === 'LEARNER' ? 'me' : ''}`}>
+            <span className="avatar">{t.speaker === 'LEARNER' ? me : 'AI'}</span>
+            <div className="bubble">{t.text}</div>
+          </div>
         ))}
-        {busy && !finished && <div className="bubble them dim">…</div>}
+        {busy && !finished && <div className="msg"><span className="avatar">AI</span><div className="bubble dim">Thinking…</div></div>}
         <div ref={endRef} />
       </div>
       {err && <p className="error" role="alert">{err}</p>}
@@ -87,20 +94,23 @@ export default function Simulation() {
           <form className="composer" onSubmit={(e) => { e.preventDefault(); send(); }}>
             <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Type your reply" aria-label="Your reply" />
             <button disabled={busy || !text.trim()}>Send</button>
-            <button type="button" className={listening ? 'rec' : 'ghost'} onClick={listen}>{listening ? 'Listening… tap to stop' : 'Speak'}</button>
+            <button type="button" className={listening ? 'rec' : 'ghost'} onClick={listen}><Icon name="mic" size={16} /> {listening ? 'Listening… tap to stop' : 'Speak'}</button>
           </form>
-          <button className="ghost" onClick={finish} disabled={busy || sim.turns.length < 3}>End and get my evaluation</button>
+          <button className="ghost" onClick={finish} disabled={busy || sim.turns.length < 3}><Icon name="check" size={16} /> End and get my evaluation</button>
         </>
       )}
 
       {finished && ev && (
-        <section className="card result">
-          <h2>Your score: {sim.overallScore}%</h2>
+        <section className="card pad-lg" style={{ marginTop: '1.5rem' }}>
+          <div className="result-hero">
+            <ScoreRing value={sim.overallScore ?? 0} size={130} />
+            <div><h2>Your evaluation</h2><p className="empty">Scored on what you said in this conversation.</p></div>
+          </div>
           <div className="bars">
             {Object.entries(LABELS).map(([k, label]) => (
               <div key={k} className="bar-row">
                 <span>{label}</span>
-                <div className="bar"><i style={{ width: `${ev.scores?.[k] ?? 0}%` }} /></div>
+                <div className="track"><i style={{ width: `${ev.scores?.[k] ?? 0}%` }} /></div>
                 <b>{ev.scores?.[k] ?? 0}%</b>
               </div>
             ))}
@@ -109,9 +119,9 @@ export default function Simulation() {
             .map(([title, items]) => items?.length > 0 && (
               <div key={title}><h3>{title}</h3><ul>{items.map((x, i) => <li key={i}>{x}</li>)}</ul></div>
             ))}
-          <Link to="/" className="btn">Try another simulation</Link>
+          <Link to="/simulations" className="btn">Try another simulation <Icon name="arrow" size={16} /></Link>
         </section>
       )}
-    </div>
+    </>
   );
 }

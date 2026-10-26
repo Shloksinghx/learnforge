@@ -43,8 +43,11 @@ public class CourseController {
     @GetMapping
     public List<CourseView> list(@RequestParam(defaultValue = "false") boolean mine) {
         AuthUser me = CurrentUser.get();
-        return courses.findByOrgIdOrderByCreatedAtDesc(me.orgId()).stream()
+        List<Course> visible = courses.findByOrgIdOrderByCreatedAtDesc(me.orgId()).stream()
                 .filter(c -> Access.isAuthor(me) || "PUBLISHED".equals(c.getStatus()))
+                .toList();
+        autoEnrol(me, visible);
+        return visible.stream()
                 .map(c -> view(c, me))
                 .filter(v -> !mine || v.enrolled())
                 .toList();
@@ -66,7 +69,9 @@ public class CourseController {
     @GetMapping("/{id}")
     public CourseDetail detail(@PathVariable UUID id) {
         AuthUser me = CurrentUser.get();
-        return detail(Access.course(courses, me, id), me);
+        Course c = Access.course(courses, me, id);
+        autoEnrol(me, List.of(c));
+        return detail(c, me);
     }
 
     @PostMapping("/{id}/publish")
@@ -127,6 +132,27 @@ public class CourseController {
             completions.save(lc);
         }
         return detail(c, me);
+    }
+
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable UUID id) {
+        AuthUser me = CurrentUser.get();
+        Access.requireAuthor(me);
+        courses.delete(Access.course(courses, me, id));
+    }
+
+    /** Every published course is automatically available to every learner in the organisation. */
+    private void autoEnrol(AuthUser me, List<Course> visible) {
+        if (Access.isAuthor(me)) return;
+        for (Course c : visible) {
+            if ("PUBLISHED".equals(c.getStatus())
+                    && enrolments.findByCourseIdAndUserId(c.getId(), me.userId()).isEmpty()) {
+                Enrolment e = new Enrolment();
+                e.setCourseId(c.getId());
+                e.setUserId(me.userId());
+                enrolments.save(e);
+            }
+        }
     }
 
     // ---- helpers ----

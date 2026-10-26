@@ -1,6 +1,33 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api.js';
+import Icon from '../Icons.jsx';
+
+const L = ['A', 'B', 'C', 'D'];
+
+function Q({ q, busy, onApprove, onDelete }) {
+  return (
+    <article className="card q">
+      <div className="qhead">
+        <span className="chip">{q.difficulty.toLowerCase()}</span>
+        <span className={`chip ${q.status === 'APPROVED' ? 'chip-glow' : 'chip-draft'}`}>{q.status.toLowerCase()}</span>
+      </div>
+      <p><b>{q.text}</b></p>
+      <ul className="opts">
+        {q.options.map((o, i) => (
+          <li key={i} className={i === q.correctIndex ? 'correct' : ''}><span className="letter">{L[i]}</span>{o}{i === q.correctIndex && <small style={{ marginLeft: 'auto' }}>correct</small>}</li>
+        ))}
+      </ul>
+      {q.explanation && <p className="empty">{q.explanation}</p>}
+      {q.status === 'DRAFT' && (
+        <div className="actions">
+          <button onClick={() => onApprove(q.id)} disabled={busy}><Icon name="check" size={16} /> Approve</button>
+          <button className="ghost" onClick={() => onDelete(q.id)} disabled={busy}><Icon name="trash" size={16} /> Delete</button>
+        </div>
+      )}
+    </article>
+  );
+}
 
 export default function Studio() {
   const { courseId } = useParams();
@@ -25,30 +52,16 @@ export default function Studio() {
   const drafts = qs.filter((q) => q.status === 'DRAFT');
   const approved = qs.filter((q) => q.status === 'APPROVED');
 
-  const Q = ({ q }) => (
-    <article className="card q">
-      <div className="row"><small>{q.difficulty.toLowerCase()}, {q.status.toLowerCase()}</small></div>
-      <p><b>{q.text}</b></p>
-      <ol type="A" className="opts">
-        {q.options.map((o, i) => <li key={i} className={i === q.correctIndex ? 'correct' : ''}>{o}{i === q.correctIndex && ' (correct)'}</li>)}
-      </ol>
-      {q.explanation && <p className="empty">{q.explanation}</p>}
-      {q.status === 'DRAFT' && (
-        <div className="actions">
-          <button onClick={() => approve(q.id)} disabled={busy}>Approve</button>
-          <button className="ghost" onClick={() => remove(q.id)} disabled={busy}>Delete</button>
-        </div>
-      )}
-    </article>
-  );
-
   return (
     <>
-      <h1>AI Question Studio</h1>
-      <p className="empty">Pick a course, let the AI draft questions from its lessons, review them, then approve. Learners only ever see approved questions.</p>
+      <div className="hero">
+        <span className="eyebrow"><Icon name="sparkles" size={14} /> Admin tool</span>
+        <h1>AI Question <span className="grad-text">Studio</span></h1>
+        <p>Pick a course and the AI drafts multiple-choice questions from its lessons. You review each one, then approve. Learners only ever see approved questions.</p>
+      </div>
       {err && <p className="error" role="alert">{err}</p>}
 
-      <div className="card form">
+      <div className="card form" style={{ marginBottom: '2rem' }}>
         <label className="wide">Course
           <select value={courseId || ''} onChange={(e) => nav(e.target.value ? `/studio/${e.target.value}` : '/studio')}>
             <option value="">Choose a course</option>
@@ -63,22 +76,24 @@ export default function Studio() {
             <option value="MIXED">Mixed</option><option value="EASY">Easy</option><option value="MEDIUM">Medium</option><option value="HARD">Hard</option>
           </select>
         </label>
-        <button onClick={generate} disabled={busy || !courseId}>{busy ? 'Working…' : 'Generate with AI'}</button>
+        <button onClick={generate} disabled={busy || !courseId}><Icon name="sparkles" size={16} /> {busy ? 'Working…' : 'Generate with AI'}</button>
       </div>
 
+      {!courseId && <div className="empty-state"><Icon name="sparkles" size={32} /><p>Choose a course above to start.</p></div>}
       {courseId && (
         <>
           <section>
             <div className="row">
               <h2>Needs review ({drafts.length})</h2>
-              {drafts.length > 0 && <button className="ghost" onClick={approveAll} disabled={busy}>Approve all</button>}
+              {drafts.length > 0 && <button className="ghost" onClick={approveAll} disabled={busy}><Icon name="check" size={16} /> Approve all</button>}
             </div>
-            {drafts.length === 0 && <p className="empty">No drafts. Generate some questions above.</p>}
-            {drafts.map((q) => <Q key={q.id} q={q} />)}
+            {drafts.length === 0 && <div className="empty-state"><p>No drafts. Generate some questions above.</p></div>}
+            {drafts.map((q) => <Q key={q.id} q={q} busy={busy} onApprove={approve} onDelete={remove} />)}
           </section>
           <section>
             <h2>Approved question bank ({approved.length})</h2>
-            {approved.map((q) => <Q key={q.id} q={q} />)}
+            {approved.length === 0 && <div className="empty-state"><p>Nothing approved yet.</p></div>}
+            {approved.map((q) => <Q key={q.id} q={q} busy={busy} />)}
           </section>
         </>
       )}

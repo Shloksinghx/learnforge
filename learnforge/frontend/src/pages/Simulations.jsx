@@ -1,37 +1,40 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, session } from '../api.js';
+import { isAdmin } from '../roles.js';
+import { initials } from '../ui.js';
+import Icon from '../Icons.jsx';
 
-const AUTHOR_ROLES = ['ORG_ADMIN', 'LND_MANAGER', 'CONTENT_MANAGER', 'TRAINER'];
-const blankPersona = { name: '', profession: '', age: '', personality: '', communication: '', knowledgeLevel: '',
+const blank = { name: '', profession: '', age: '', personality: '', communication: '', knowledgeLevel: '',
   behaviour: '', objections: '', scenario: '', mandatoryInfo: '', prohibitedStatements: '' };
+const LEVELS = [[1, 'Guided'], [2, 'Assisted'], [3, 'Independent'], [4, 'Challenging'], [5, 'Expert']];
 
 export default function Simulations() {
   const nav = useNavigate();
-  const user = session.user;
-  const canAuthor = AUTHOR_ROLES.includes(user.role);
+  const admin = isAdmin(session.user);
   const [personas, setPersonas] = useState([]);
   const [level, setLevel] = useState(3);
-  const [form, setForm] = useState(blankPersona);
+  const [form, setForm] = useState(blank);
   const [showForm, setShowForm] = useState(false);
   const [err, setErr] = useState('');
+  const [starting, setStarting] = useState(null);
 
   const load = () => api('/api/personas').then(setPersonas).catch((e) => setErr(e.message));
   useEffect(() => { load(); }, []);
 
   async function start(personaId) {
-    setErr('');
+    setErr(''); setStarting(personaId);
     try {
       const sim = await api('/api/simulations', { method: 'POST', body: { personaId, difficulty: Number(level) } });
       nav(`/simulate/${sim.id}`);
-    } catch (e) { setErr(e.message); }
+    } catch (e) { setErr(e.message); setStarting(null); }
   }
 
   async function savePersona(e) {
     e.preventDefault(); setErr('');
     try {
       await api('/api/personas', { method: 'POST', body: { ...form, age: form.age ? Number(form.age) : null } });
-      setForm(blankPersona); setShowForm(false); load();
+      setForm(blank); setShowForm(false); load();
     } catch (ex) { setErr(ex.message); }
   }
 
@@ -39,39 +42,32 @@ export default function Simulations() {
 
   return (
     <>
+      <div className="page-head">
+        <div><span className="eyebrow"><Icon name="mic" size={14} /> Role-play</span><h1>Simulations</h1></div>
+        <div className="seg" role="group" aria-label="Difficulty">
+          {LEVELS.map(([n, label]) => <button key={n} className={level === n ? 'on' : ''} onClick={() => setLevel(n)} aria-pressed={level === n}>{n} {label}</button>)}
+        </div>
+      </div>
+      <p className="empty">Choose a persona and a difficulty. At level 1 and 2 the persona gives you hints; at level 5 anything can happen.</p>
       {err && <p className="error" role="alert">{err}</p>}
-      <section>
-        <div className="row">
-          <h2>Practice a conversation</h2>
-          <label className="inline">Difficulty
-            <select value={level} onChange={(e) => setLevel(e.target.value)}>
-              <option value={1}>1 Guided (hints)</option>
-              <option value={2}>2 Assisted</option>
-              <option value={3}>3 Independent</option>
-              <option value={4}>4 Challenging</option>
-              <option value={5}>5 Expert</option>
-            </select>
-          </label>
-        </div>
-        {personas.length === 0 && <p className="empty">No personas yet. {canAuthor ? 'Create the first one below.' : 'Ask your trainer to add one.'}</p>}
-        <div className="grid">
-          {personas.map((p) => (
-            <article key={p.id} className="card persona">
-              <h3>{p.name}</h3>
-              <p className="meta">{p.profession}{p.age ? `, ${p.age}` : ''}</p>
-              <p>{p.scenario}</p>
-              <button onClick={() => start(p.id)}>Start simulation</button>
-            </article>
-          ))}
-        </div>
-      </section>
 
-      {canAuthor && (
-        <section>
-          <div className="row">
-            <h2>Create a persona</h2>
-            <button className="ghost" onClick={() => setShowForm(!showForm)}>{showForm ? 'Close' : 'New persona'}</button>
-          </div>
+      {personas.length === 0 && <div className="empty-state"><Icon name="chat" size={32} /><p>No personas yet. {admin ? 'Create the first one below.' : 'Ask your administrator to add one.'}</p></div>}
+      <div className="grid">
+        {personas.map((p) => (
+          <article key={p.id} className="card persona-card">
+            <div className="persona-top">
+              <span className="avatar">{initials(p.name)}</span>
+              <div><h3>{p.name}</h3><small>{p.profession}{p.age ? `, ${p.age}` : ''}</small></div>
+            </div>
+            <p>{p.scenario}</p>
+            <button onClick={() => start(p.id)} disabled={starting === p.id}>{starting === p.id ? 'Starting…' : 'Start simulation'} <Icon name="arrow" size={16} /></button>
+          </article>
+        ))}
+      </div>
+
+      {admin && (
+        <section style={{ marginTop: '2.5rem' }}>
+          <div className="row"><h2>Create a persona</h2><button className="ghost" onClick={() => setShowForm(!showForm)}><Icon name={showForm ? 'check' : 'plus'} size={16} /> {showForm ? 'Close' : 'New persona'}</button></div>
           {showForm && (
             <form className="card form" onSubmit={savePersona}>
               <label>Name<input required {...f('name')} placeholder="Dr. Raj Mehta" /></label>
@@ -90,8 +86,6 @@ export default function Simulations() {
           )}
         </section>
       )}
-
-
     </>
   );
 }

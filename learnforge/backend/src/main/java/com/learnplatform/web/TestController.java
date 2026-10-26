@@ -6,6 +6,7 @@ import com.learnplatform.config.AuthUser;
 import com.learnplatform.config.CurrentUser;
 import com.learnplatform.domain.*;
 import com.learnplatform.repo.*;
+import com.learnplatform.service.CertificateService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -30,7 +31,8 @@ public class TestController {
     public record QuestionItem(UUID id, String text, List<String> options, Integer selectedIndex,
                                Integer correctIndex, String explanation, Boolean correct) {}
     public record AttemptView(UUID id, UUID courseId, String courseTitle, String status, Integer score,
-                              int correctCount, int total, Boolean passed, List<QuestionItem> questions) {}
+                              int correctCount, int total, Boolean passed, String certificateCode,
+                              List<QuestionItem> questions) {}
     public record AttemptSummary(UUID id, UUID courseId, String courseTitle, String status, Integer score,
                                  int correctCount, int total, Boolean passed, Instant at) {}
 
@@ -40,9 +42,14 @@ public class TestController {
     private final AttemptRepository attempts;
     private final AttemptAnswerRepository answers;
     private final ObjectMapper mapper;
+    private final AppUserRepository users;
+    private final CertificateService certificates;
 
     public TestController(CourseRepository courses, EnrolmentRepository enrolments, QuestionRepository questions,
-                          AttemptRepository attempts, AttemptAnswerRepository answers, ObjectMapper mapper) {
+                          AttemptRepository attempts, AttemptAnswerRepository answers, ObjectMapper mapper,
+                          AppUserRepository users, CertificateService certificates) {
+        this.users = users;
+        this.certificates = certificates;
         this.courses = courses;
         this.enrolments = enrolments;
         this.questions = questions;
@@ -114,7 +121,16 @@ public class TestController {
         a.setStatus("SUBMITTED");
         a.setSubmittedAt(Instant.now());
         attempts.save(a);
-        return view(a, courses.findById(a.getCourseId()).orElseThrow());
+
+        Course course = courses.findById(a.getCourseId()).orElseThrow();
+        AuthUser me = CurrentUser.get();
+        if (a.getScore() >= PASS_MARK && !Access.isAuthor(me)) {
+            String title = certTitle(course);
+            if (certificates.findActive(me.userId(), title).isEmpty()) {
+                certificates.issue(users.findById(me.userId()).orElseThrow(), title, a.getScore(), 24);
+            }
+        }
+        return view(a, course);
     }
 
     @GetMapping("/attempts/mine")
@@ -134,6 +150,10 @@ public class TestController {
     }
 
     // ---- helpers ----
+    private static String certTitle(Course c) {
+        return "Certificate of Completion: " + c.getTitle();
+    }
+
     private Attempt owned(UUID id) {
         AuthUser me = CurrentUser.get();
         return attempts.findById(id).filter(a -> a.getUserId().equals(me.userId()))
@@ -159,8 +179,12 @@ public class TestController {
                     done ? q.getCorrectIndex() : null, done ? q.getExplanation() : null,
                     done ? r.getCorrect() : null));
         }
+        boolean passed = done && a.getScore() >= PASS_MARK;
+        String certCode = passed
+                ? certificates.findActive(a.getUserId(), certTitle(c)).map(Certificate::getCode).orElse(null)
+                : null;
         return new AttemptView(a.getId(), c.getId(), c.getTitle(), a.getStatus(), a.getScore(),
                 a.getCorrectCount() == null ? 0 : a.getCorrectCount(), a.getTotal(),
-                done ? a.getScore() >= PASS_MARK : null, items);
+                done ? passed : null, certCode, items);
     }
 }

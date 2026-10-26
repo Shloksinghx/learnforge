@@ -27,7 +27,7 @@ public class UserController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ORG_ADMIN','LND_MANAGER','TRAINER')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ORG_ADMIN')")
     public List<AuthController.UserView> list() {
         return users.findByOrgIdOrderByCreatedAtDesc(CurrentUser.get().orgId()).stream()
                 .map(u -> new AuthController.UserView(u.getId(), u.getOrgId(), u.getFullName(), u.getEmail(), u.getRole()))
@@ -35,7 +35,7 @@ public class UserController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ORG_ADMIN','LND_MANAGER')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ORG_ADMIN')")
     public AuthController.UserView create(@Valid @RequestBody CreateUser req) {
         if (req.role() == Role.SUPER_ADMIN) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot assign this role");

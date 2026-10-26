@@ -12,7 +12,7 @@ import org.springframework.web.server.ResponseStatusException;
 /** Shared access rules for course content. */
 final class Access {
     private static final Set<Role> AUTHORS =
-            Set.of(Role.ORG_ADMIN, Role.LND_MANAGER, Role.CONTENT_MANAGER, Role.TRAINER);
+            Set.of(Role.SUPER_ADMIN, Role.ORG_ADMIN);
 
     private Access() {}
 

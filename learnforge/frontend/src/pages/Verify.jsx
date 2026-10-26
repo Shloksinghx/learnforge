@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { api } from '../api.js';
+import Icon from '../Icons.jsx';
+
+const API = import.meta.env.VITE_API_URL || '';
 
 export default function Verify() {
   const { code } = useParams();
@@ -11,21 +14,23 @@ export default function Verify() {
 
   return (
     <main className="page narrow">
-      <h1>Certificate verification</h1>
-      {err && <p className="error">{err}</p>}
+      <p><Link to="/">&larr; LearnForge</Link></p>
+      <span className="eyebrow"><Icon name="shield" size={14} /> Certificate verification</span>
+      {err && <p className="error" style={{ marginTop: '1rem' }}>{err}</p>}
       {cert && (
-        <div className="card cert">
-          <p className={`status ${cert.status.toLowerCase()}`}>{cert.status}</p>
+        <div className="card certificate" style={{ marginTop: '1rem' }}>
+          <span className={`status-pill ${cert.status.toLowerCase()}`}><Icon name="check" size={16} /> {cert.status}</span>
+          <h2>{cert.title.replace('Certificate of Completion: ', '')}</h2>
+          <p className="empty">awarded to</p>
+          <h1 className="grad-text" style={{ marginBottom: 0 }}>{cert.learnerName}</h1>
           <dl>
             <dt>Certificate ID</dt><dd>{cert.code}</dd>
-            <dt>Candidate</dt><dd>{cert.learnerName}</dd>
-            <dt>Certification</dt><dd>{cert.title}</dd>
             <dt>Score</dt><dd>{cert.score}%</dd>
             <dt>Issued by</dt><dd>{cert.issuer}</dd>
             <dt>Issued</dt><dd>{fmt(cert.issuedAt)}</dd>
             <dt>Valid until</dt><dd>{fmt(cert.validUntil)}</dd>
           </dl>
-             <img src={`${import.meta.env.VITE_API_URL || ''}/api/public/certificates/${cert.code}/qr.png`} alt="QR code for this certificate" width="140" height="140" />
+          <img src={`${API}/api/public/certificates/${cert.code}/qr.png`} alt="QR code for this certificate" width="140" height="140" />
         </div>
       )}
     </main>

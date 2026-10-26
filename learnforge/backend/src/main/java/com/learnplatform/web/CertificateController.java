@@ -1,18 +1,19 @@
 package com.learnplatform.web;
 
-import com.learnplatform.config.CurrentUser;
-import com.learnplatform.domain.*;
-import com.learnplatform.repo.*;
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.client.j2se.MatrixToImageWriter;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
+import com.learnplatform.config.CurrentUser;
+import com.learnplatform.domain.AppUser;
+import com.learnplatform.domain.Certificate;
+import com.learnplatform.repo.AppUserRepository;
+import com.learnplatform.repo.CertificateRepository;
+import com.learnplatform.service.CertificateService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import java.io.ByteArrayOutputStream;
-import java.security.SecureRandom;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,42 +31,27 @@ public class CertificateController {
     public record CertView(String code, String learnerName, String title, int score, String issuer,
                            Instant issuedAt, Instant validUntil, String status) {}
 
-    private static final String ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    private final SecureRandom random = new SecureRandom();
-
     private final CertificateRepository certs;
     private final AppUserRepository users;
-    private final OrganisationRepository orgs;
+    private final CertificateService service;
     private final String publicUrl;
 
-    public CertificateController(CertificateRepository certs, AppUserRepository users, OrganisationRepository orgs,
+    public CertificateController(CertificateRepository certs, AppUserRepository users, CertificateService service,
                                  @Value("${app.public-url}") String publicUrl) {
         this.certs = certs;
         this.users = users;
-        this.orgs = orgs;
+        this.service = service;
         this.publicUrl = publicUrl;
     }
 
     @PostMapping("/api/certificates")
-    @PreAuthorize("hasAnyRole('ORG_ADMIN','CERTIFICATION_AUTHORITY')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ORG_ADMIN','CERTIFICATION_AUTHORITY')")
     public CertView issue(@Valid @RequestBody IssueReq r) {
         var me = CurrentUser.get();
         AppUser learner = users.findById(r.learnerId())
                 .filter(u -> u.getOrgId().equals(me.orgId()))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Learner not found"));
-        Certificate c = new Certificate();
-        c.setOrgId(me.orgId());
-        c.setCode(newCode());
-        c.setLearnerId(learner.getId());
-        c.setLearnerName(learner.getFullName());
-        c.setTitle(r.title());
-        c.setScore(r.score());
-        c.setIssuer(orgs.findById(me.orgId()).orElseThrow().getName());
-        Instant now = Instant.now();
-        c.setCreatedAt(now);
-        c.setValidUntil(now.atZone(ZoneOffset.UTC).plusMonths(r.validityMonths()).toInstant());
-        certs.save(c);
-        return view(c);
+        return view(service.issue(learner, r.title(), r.score(), r.validityMonths()));
     }
 
     @GetMapping("/api/certificates/mine")
@@ -74,7 +60,7 @@ public class CertificateController {
     }
 
     @PostMapping("/api/certificates/{code}/revoke")
-    @PreAuthorize("hasAnyRole('ORG_ADMIN','CERTIFICATION_AUTHORITY')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ORG_ADMIN','CERTIFICATION_AUTHORITY')")
     public CertView revoke(@PathVariable String code) {
         Certificate c = certs.findByCode(code)
                 .filter(x -> x.getOrgId().equals(CurrentUser.get().orgId()))
@@ -102,15 +88,5 @@ public class CertificateController {
         String status = c.isRevoked() ? "REVOKED" : Instant.now().isAfter(c.getValidUntil()) ? "EXPIRED" : "VALID";
         return new CertView(c.getCode(), c.getLearnerName(), c.getTitle(), c.getScore(), c.getIssuer(),
                 c.getCreatedAt(), c.getValidUntil(), status);
-    }
-
-    private String newCode() {
-        for (int attempt = 0; attempt < 5; attempt++) {
-            StringBuilder sb = new StringBuilder("LF-");
-            for (int i = 0; i < 10; i++) sb.append(ALPHABET.charAt(random.nextInt(ALPHABET.length())));
-            String code = sb.toString();
-            if (certs.findByCode(code).isEmpty()) return code;
-        }
-        throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not allocate certificate code");
     }
 }

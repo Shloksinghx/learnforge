@@ -29,7 +29,7 @@ public class PersonaController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ORG_ADMIN','LND_MANAGER','CONTENT_MANAGER','TRAINER')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ORG_ADMIN')")
     public Persona create(@Valid @RequestBody CreatePersona r) {
         Persona p = new Persona();
         p.setOrgId(CurrentUser.get().orgId());

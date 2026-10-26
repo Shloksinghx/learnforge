@@ -1,5 +1,8 @@
 import { Navigate, NavLink, Route, Routes, Link, useNavigate } from 'react-router-dom';
 import { session } from './api.js';
+import { isAdmin } from './roles.js';
+import { initials, prettyRole } from './ui.js';
+import Icon from './Icons.jsx';
 import Login from './pages/Login.jsx';
 import Home from './pages/Home.jsx';
 import Courses from './pages/Courses.jsx';
@@ -8,31 +11,40 @@ import Studio from './pages/Studio.jsx';
 import Test from './pages/Test.jsx';
 import Simulations from './pages/Simulations.jsx';
 import Simulation from './pages/Simulation.jsx';
+import Users from './pages/Users.jsx';
 import Verify from './pages/Verify.jsx';
-
-import { AUTHOR_ROLES } from './roles.js';
 
 function Protected({ children }) {
   return session.token ? children : <Navigate to="/login" replace />;
 }
 
+function AdminOnly({ children }) {
+  return isAdmin(session.user) ? children : <Navigate to="/" replace />;
+}
+
 function Shell({ children }) {
   const nav = useNavigate();
   const user = session.user;
-  const isAuthor = AUTHOR_ROLES.includes(user?.role);
+  const admin = isAdmin(user);
   return (
     <>
       <header className="bar">
-        <Link to="/" className="brand">LearnForge</Link>
+        <Link to="/" className="brand"><span className="brand-mark"><Icon name="sparkles" size={19} /></span>LearnForge</Link>
         <nav className="tabs" aria-label="Main">
-          <NavLink to="/" end>Home</NavLink>
-          <NavLink to="/my-courses">My courses</NavLink>
-          <NavLink to="/courses">Courses</NavLink>
-          <NavLink to="/simulations">Simulations</NavLink>
-          {isAuthor && <NavLink to="/studio">AI Question Studio</NavLink>}
+          <NavLink to="/" end><Icon name="home" size={16} /> Home</NavLink>
+          <NavLink to="/my-courses"><Icon name="book" size={16} /> My courses</NavLink>
+          <NavLink to="/courses"><Icon name="grid" size={16} /> Courses</NavLink>
+          <NavLink to="/simulations"><Icon name="chat" size={16} /> Simulations</NavLink>
+          {admin && <NavLink to="/studio"><Icon name="sparkles" size={16} /> AI Question Studio</NavLink>}
+          {admin && <NavLink to="/people"><Icon name="users" size={16} /> People</NavLink>}
         </nav>
-        <span className="who">{user?.fullName} <small>{user?.role?.replaceAll('_', ' ').toLowerCase()}</small></span>
-        <button className="ghost" onClick={() => { session.clear(); nav('/login'); }}>Sign out</button>
+        <div className="user-chip">
+          <span className="avatar">{initials(user?.fullName)}</span>
+          <div><b>{user?.fullName}</b><small>{prettyRole(user?.role)}</small></div>
+        </div>
+        <button className="ghost icon-btn" aria-label="Sign out" title="Sign out" onClick={() => { session.clear(); nav('/login'); }}>
+          <Icon name="logout" size={18} />
+        </button>
       </header>
       <main className="page">{children}</main>
     </>
@@ -40,6 +52,7 @@ function Shell({ children }) {
 }
 
 const page = (el) => <Protected><Shell>{el}</Shell></Protected>;
+const adminPage = (el) => <Protected><AdminOnly><Shell>{el}</Shell></AdminOnly></Protected>;
 
 export default function App() {
   return (
@@ -50,8 +63,9 @@ export default function App() {
       <Route path="/my-courses" element={page(<Courses mine />)} />
       <Route path="/courses" element={page(<Courses />)} />
       <Route path="/courses/:id" element={page(<CourseDetail />)} />
-      <Route path="/studio" element={page(<Studio />)} />
-      <Route path="/studio/:courseId" element={page(<Studio />)} />
+      <Route path="/studio" element={adminPage(<Studio />)} />
+      <Route path="/studio/:courseId" element={adminPage(<Studio />)} />
+      <Route path="/people" element={adminPage(<Users />)} />
       <Route path="/test/:attemptId" element={page(<Test />)} />
       <Route path="/simulations" element={page(<Simulations />)} />
       <Route path="/simulate/:id" element={page(<Simulation />)} />
