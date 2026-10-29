@@ -13,6 +13,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -24,8 +25,10 @@ import org.springframework.web.server.ResponseStatusException;
 @RequestMapping("/api")
 public class QuestionController {
     public record GenerateReq(@Min(1) @Max(20) int count,
-                              @Pattern(regexp = "(?i)EASY|MEDIUM|HARD|MIXED") String difficulty) {}
-    public record QuestionView(UUID id, String text, List<String> options, int correctIndex,
+                              @Pattern(regexp = "(?i)EASY|MEDIUM|HARD|MIXED") String difficulty,
+                              @Pattern(regexp = "(?i)MCQ|TRUE_FALSE|CASE_BASED") String type,
+                              @Size(max = 200) String topic) {}
+    public record QuestionView(UUID id, String text, String kind, List<String> options, int correctIndex,
                                String explanation, String difficulty, String status) {}
 
     private final CourseRepository courses;
@@ -54,7 +57,7 @@ public class QuestionController {
         AuthUser me = CurrentUser.get();
         Access.requireAuthor(me);
         Course c = Access.course(courses, me, id);
-        return generator.generate(c, req.count(), req.difficulty()).stream().map(this::view).toList();
+        return generator.generate(c, req.count(), req.difficulty() == null ? "MIXED" : req.difficulty(), req.type(), req.topic()).stream().map(this::view).toList();
     }
 
     @PostMapping("/courses/{id}/questions/approve-all")
@@ -98,7 +101,7 @@ public class QuestionController {
         } catch (Exception e) {
             opts = List.of();
         }
-        return new QuestionView(q.getId(), q.getText(), opts, q.getCorrectIndex(), q.getExplanation(),
+        return new QuestionView(q.getId(), q.getText(), q.getKind(), opts, q.getCorrectIndex(), q.getExplanation(),
                 q.getDifficulty(), q.getStatus());
     }
 }

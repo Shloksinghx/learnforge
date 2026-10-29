@@ -4,6 +4,7 @@ import com.learnplatform.config.AuthUser;
 import com.learnplatform.config.CurrentUser;
 import com.learnplatform.domain.*;
 import com.learnplatform.repo.*;
+import com.learnplatform.service.GamificationService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -30,9 +31,12 @@ public class CourseController {
     private final EnrolmentRepository enrolments;
     private final LessonCompletionRepository completions;
     private final QuestionRepository questions;
+    private final GamificationService gamification;
 
     public CourseController(CourseRepository courses, LessonRepository lessons, EnrolmentRepository enrolments,
-                            LessonCompletionRepository completions, QuestionRepository questions) {
+                            LessonCompletionRepository completions, QuestionRepository questions,
+                            GamificationService gamification) {
+        this.gamification = gamification;
         this.courses = courses;
         this.lessons = lessons;
         this.enrolments = enrolments;
@@ -130,6 +134,10 @@ public class CourseController {
             lc.setLessonId(l.getId());
             lc.setUserId(me.userId());
             completions.save(lc);
+            if (!Access.isAuthor(me)) {
+                gamification.award(me.orgId(), me.userId(), "LESSON", l.getId().toString(), 10);
+                gamification.refresh(me.orgId(), me.userId());
+            }
         }
         return detail(c, me);
     }

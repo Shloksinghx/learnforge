@@ -4,6 +4,8 @@ import com.learnplatform.config.CurrentUser;
 import com.learnplatform.domain.Persona;
 import com.learnplatform.repo.PersonaRepository;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import java.util.List;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -15,7 +17,9 @@ public class PersonaController {
     public record CreatePersona(@NotBlank String name, @NotBlank String profession, Integer age,
                                 String personality, String communication, String knowledgeLevel,
                                 String behaviour, String objections, @NotBlank String scenario,
-                                String mandatoryInfo, String prohibitedStatements) {}
+                                String mandatoryInfo, String prohibitedStatements,
+                                String objective, String successCriteria, String expectedBehaviour,
+                                @Min(1) @Max(60) Integer timeLimitMinutes) {}
 
     private final PersonaRepository personas;
 
@@ -44,6 +48,10 @@ public class PersonaController {
         p.setScenario(r.scenario());
         p.setMandatoryInfo(r.mandatoryInfo());
         p.setProhibitedStatements(r.prohibitedStatements());
+        p.setObjective(r.objective());
+        p.setSuccessCriteria(r.successCriteria());
+        p.setExpectedBehaviour(r.expectedBehaviour());
+        p.setTimeLimitMinutes(r.timeLimitMinutes());
         return personas.save(p);
     }
 }

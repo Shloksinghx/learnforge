@@ -14,7 +14,6 @@ public class Question {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
-
     @Column(name = "org_id") private UUID orgId;
     @Column(name = "course_id") private UUID courseId;
     @Column(columnDefinition = "text") private String text;
@@ -22,6 +21,7 @@ public class Question {
     @Column(name = "correct_index") private int correctIndex;
     @Column(columnDefinition = "text") private String explanation;
     private String difficulty;
+    private String kind = "MCQ";
     private String status = "DRAFT";
     @Column(name = "created_at") private Instant createdAt;
 

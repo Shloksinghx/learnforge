@@ -19,11 +19,32 @@ export default function Simulation() {
   const [err, setErr] = useState('');
   const [voice, setVoice] = useState(false);
   const [listening, setListening] = useState(false);
+  const [left, setLeft] = useState(null);
+  const finishing = useRef(false);
   const recRef = useRef(null);
   const endRef = useRef(null);
   const me = initials(session.user?.fullName);
 
   useEffect(() => { api(`/api/simulations/${id}`).then(setSim).catch((e) => setErr(e.message)); }, [id]);
+
+  // countdown for personas with a time limit; the evaluation runs automatically when time is up
+  useEffect(() => {
+    if (!sim || sim.status !== 'ACTIVE' || !sim.timeLimitMinutes) return undefined;
+    const tick = () => {
+      const remaining = Math.round(sim.timeLimitMinutes * 60 - (Date.now() - new Date(sim.startedAt).getTime()) / 1000);
+      setLeft(Math.max(0, remaining));
+    };
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, [sim?.status, sim?.timeLimitMinutes, sim?.startedAt]);
+
+  useEffect(() => {
+    if (left === 0 && sim?.status === 'ACTIVE' && !finishing.current && sim.turns.some((t) => t.speaker === 'LEARNER')) {
+      finishing.current = true;
+      finish();
+    }
+  }, [left]);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [sim?.turns?.length]);
 
   const speak = useCallback((t) => {
@@ -75,6 +96,11 @@ export default function Simulation() {
       <div className="row">
         <Link to="/simulations">&larr; All simulations</Link>
         <label className="inline"><input type="checkbox" checked={voice} onChange={(e) => setVoice(e.target.checked)} /> Speak replies aloud</label>
+      </div>
+      <div className="card sim-head">
+        <span className="avatar big">{initials(sim.personaName || 'AI')}</span>
+        <div className="grow"><b>{sim.personaName || 'AI persona'}</b><br /><small>{sim.personaProfession} &middot; difficulty {sim.difficulty}</small></div>
+        {left != null && !finished && <span className={`timer ${left < 30 ? 'low' : ''}`}><Icon name="clock" size={16} /> {String(Math.floor(left / 60)).padStart(2, '0')}:{String(left % 60).padStart(2, '0')}</span>}
       </div>
 
       <div className="card chat" aria-live="polite">

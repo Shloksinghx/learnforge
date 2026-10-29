@@ -1,6 +1,6 @@
-Unzip into your project folder, from the folder that contains `learnforge`:
+Unzip into your project from the folder that contains `learnforge`:
 
-    unzip -o ~/Downloads/learnforge-v3-update.zip -d learnforge
+    unzip -o ~/Downloads/learnforge-v4-update.zip -d learnforge
     git add learnforge
-    git commit -m "New design, admin-only content tools, delete course, People page, auto-enrol, certificates"
+    git commit -m "Content upload, AI tutor, gamification, mock tests, adaptive tests, insights, coach, certificate PDF"
     git push

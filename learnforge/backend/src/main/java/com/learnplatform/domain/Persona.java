@@ -14,7 +14,6 @@ public class Persona {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
-
     @Column(name = "org_id") private UUID orgId;
     private String name;
     private String profession;
@@ -27,6 +26,10 @@ public class Persona {
     @Column(columnDefinition = "text") private String scenario;
     @Column(name = "mandatory_info", columnDefinition = "text") private String mandatoryInfo;
     @Column(name = "prohibited_statements", columnDefinition = "text") private String prohibitedStatements;
+    @Column(columnDefinition = "text") private String objective;
+    @Column(name = "success_criteria", columnDefinition = "text") private String successCriteria;
+    @Column(name = "expected_behaviour", columnDefinition = "text") private String expectedBehaviour;
+    @Column(name = "time_limit_minutes") private Integer timeLimitMinutes;
     @Column(name = "created_at") private Instant createdAt;
 
     @PrePersist

@@ -31,6 +31,7 @@ export default function Verify() {
             <dt>Valid until</dt><dd>{fmt(cert.validUntil)}</dd>
           </dl>
           <img src={`${API}/api/public/certificates/${cert.code}/qr.png`} alt="QR code for this certificate" width="140" height="140" />
+          <p style={{ marginTop: '1.2rem' }}><a className="btn" href={`${API}/api/public/certificates/${cert.code}/pdf`} target="_blank" rel="noreferrer"><Icon name="download" size={16} /> Download PDF</a></p>
         </div>
       )}
     </main>

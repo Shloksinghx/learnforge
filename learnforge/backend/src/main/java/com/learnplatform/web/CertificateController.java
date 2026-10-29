@@ -9,6 +9,7 @@ import com.learnplatform.domain.AppUser;
 import com.learnplatform.domain.Certificate;
 import com.learnplatform.repo.AppUserRepository;
 import com.learnplatform.repo.CertificateRepository;
+import com.learnplatform.service.CertificatePdfService;
 import com.learnplatform.service.CertificateService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
@@ -34,10 +35,12 @@ public class CertificateController {
     private final CertificateRepository certs;
     private final AppUserRepository users;
     private final CertificateService service;
+    private final CertificatePdfService pdf;
     private final String publicUrl;
 
     public CertificateController(CertificateRepository certs, AppUserRepository users, CertificateService service,
-                                 @Value("${app.public-url}") String publicUrl) {
+                                 CertificatePdfService pdf, @Value("${app.public-url}") String publicUrl) {
+        this.pdf = pdf;
         this.certs = certs;
         this.users = users;
         this.service = service;
@@ -78,10 +81,23 @@ public class CertificateController {
     @GetMapping(value = "/api/public/certificates/{code}/qr.png", produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity<byte[]> qr(@PathVariable String code) throws Exception {
         certs.findByCode(code).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Certificate not found"));
+        return ResponseEntity.ok(qrPng(code));
+    }
+
+    @GetMapping(value = "/api/public/certificates/{code}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    public ResponseEntity<byte[]> pdf(@PathVariable String code) throws Exception {
+        Certificate c = certs.findByCode(code)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Certificate not found"));
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "inline; filename=\"certificate-" + code + ".pdf\"")
+                .body(pdf.render(c, qrPng(code)));
+    }
+
+    private byte[] qrPng(String code) throws Exception {
         BitMatrix m = new QRCodeWriter().encode(publicUrl + "/verify/" + code, BarcodeFormat.QR_CODE, 320, 320);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         MatrixToImageWriter.writeToStream(m, "PNG", out);
-        return ResponseEntity.ok(out.toByteArray());
+        return out.toByteArray();
     }
 
     private CertView view(Certificate c) {

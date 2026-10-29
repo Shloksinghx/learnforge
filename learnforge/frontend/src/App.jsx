@@ -12,6 +12,8 @@ import Test from './pages/Test.jsx';
 import Simulations from './pages/Simulations.jsx';
 import Simulation from './pages/Simulation.jsx';
 import Users from './pages/Users.jsx';
+import Leaderboard from './pages/Leaderboard.jsx';
+import Insights from './pages/Insights.jsx';
 import Verify from './pages/Verify.jsx';
 
 function Protected({ children }) {
@@ -35,6 +37,8 @@ function Shell({ children }) {
           <NavLink to="/my-courses"><Icon name="book" size={16} /> My courses</NavLink>
           <NavLink to="/courses"><Icon name="grid" size={16} /> Courses</NavLink>
           <NavLink to="/simulations"><Icon name="chat" size={16} /> Simulations</NavLink>
+          <NavLink to="/leaderboard"><Icon name="trophy" size={16} /> Leaderboard</NavLink>
+          {admin && <NavLink to="/insights"><Icon name="chart" size={16} /> Insights</NavLink>}
           {admin && <NavLink to="/studio"><Icon name="sparkles" size={16} /> AI Question Studio</NavLink>}
           {admin && <NavLink to="/people"><Icon name="users" size={16} /> People</NavLink>}
         </nav>
@@ -66,6 +70,8 @@ export default function App() {
       <Route path="/studio" element={adminPage(<Studio />)} />
       <Route path="/studio/:courseId" element={adminPage(<Studio />)} />
       <Route path="/people" element={adminPage(<Users />)} />
+      <Route path="/insights" element={adminPage(<Insights />)} />
+      <Route path="/leaderboard" element={page(<Leaderboard />)} />
       <Route path="/test/:attemptId" element={page(<Test />)} />
       <Route path="/simulations" element={page(<Simulations />)} />
       <Route path="/simulate/:id" element={page(<Simulation />)} />

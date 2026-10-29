@@ -4,11 +4,13 @@ import { api } from '../api.js';
 import Icon from '../Icons.jsx';
 
 const L = ['A', 'B', 'C', 'D'];
+const KIND = { MCQ: 'Multiple choice', TRUE_FALSE: 'True or false', CASE_BASED: 'Case study' };
 
 function Q({ q, busy, onApprove, onDelete }) {
   return (
     <article className="card q">
       <div className="qhead">
+        <span className="chip">{KIND[q.kind] || 'Multiple choice'}</span>
         <span className="chip">{q.difficulty.toLowerCase()}</span>
         <span className={`chip ${q.status === 'APPROVED' ? 'chip-glow' : 'chip-draft'}`}>{q.status.toLowerCase()}</span>
       </div>
@@ -36,6 +38,8 @@ export default function Studio() {
   const [qs, setQs] = useState([]);
   const [count, setCount] = useState(10);
   const [difficulty, setDifficulty] = useState('MIXED');
+  const [type, setType] = useState('MCQ');
+  const [topic, setTopic] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
@@ -44,7 +48,7 @@ export default function Studio() {
   useEffect(() => { loadQs(); }, [courseId]);
 
   const run = async (fn) => { setErr(''); setBusy(true); try { await fn(); } catch (e) { setErr(e.message); } finally { setBusy(false); } };
-  const generate = () => run(async () => { await api(`/api/courses/${courseId}/questions/generate`, { method: 'POST', body: { count: Number(count), difficulty } }); await loadQs(); });
+  const generate = () => run(async () => { await api(`/api/courses/${courseId}/questions/generate`, { method: 'POST', body: { count: Number(count), difficulty, type, topic: topic.trim() || null } }); await loadQs(); });
   const approve = (id) => run(async () => { await api(`/api/questions/${id}/approve`, { method: 'POST' }); await loadQs(); });
   const remove = (id) => run(async () => { await api(`/api/questions/${id}`, { method: 'DELETE' }); await loadQs(); });
   const approveAll = () => run(async () => { await api(`/api/courses/${courseId}/questions/approve-all`, { method: 'POST' }); await loadQs(); });
@@ -75,6 +79,14 @@ export default function Studio() {
           <select value={difficulty} onChange={(e) => setDifficulty(e.target.value)}>
             <option value="MIXED">Mixed</option><option value="EASY">Easy</option><option value="MEDIUM">Medium</option><option value="HARD">Hard</option>
           </select>
+        </label>
+        <label>Question type
+          <select value={type} onChange={(e) => setType(e.target.value)}>
+            <option value="MCQ">Multiple choice</option><option value="TRUE_FALSE">True or false</option><option value="CASE_BASED">Case study</option>
+          </select>
+        </label>
+        <label className="wide">Focus topic (optional)
+          <input value={topic} maxLength={200} onChange={(e) => setTopic(e.target.value)} placeholder="For example: handling price objections" />
         </label>
         <button onClick={generate} disabled={busy || !courseId}><Icon name="sparkles" size={16} /> {busy ? 'Working…' : 'Generate with AI'}</button>
       </div>
