@@ -192,7 +192,7 @@ public class GamificationService {
     private List<ChallengeView> challenges(UUID userId, int streak) {
         List<Attempt> done = submitted(userId);
         int sims = Math.min(3, finishedSims(userId).size());
-        int passed = (int) Math.min(3, done.stream().filter(a -> a.getScore() >= 60).count());
+        int passed = (int) Math.min(3, done.stream().filter(a -> a.getScore() >= a.getPassMark()).count());
         boolean perfect = done.stream().anyMatch(a -> a.getScore() >= 100);
 
         boolean improved = false;

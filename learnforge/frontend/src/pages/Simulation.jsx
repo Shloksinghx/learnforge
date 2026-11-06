@@ -4,6 +4,7 @@ import { api, session } from '../api.js';
 import { initials } from '../ui.js';
 import Icon from '../Icons.jsx';
 import ScoreRing from '../ScoreRing.jsx';
+import { recordWav, transcribe, speak as serverSpeak } from '../voice.js';
 
 const LABELS = {
   productKnowledge: 'Product knowledge', communication: 'Communication', questioning: 'Questioning',
@@ -19,6 +20,8 @@ export default function Simulation() {
   const [err, setErr] = useState('');
   const [voice, setVoice] = useState(false);
   const [listening, setListening] = useState(false);
+  const [aiVoice, setAiVoice] = useState(false);
+  const [recording, setRecording] = useState(null);
   const [left, setLeft] = useState(null);
   const finishing = useRef(false);
   const recRef = useRef(null);
@@ -48,12 +51,16 @@ export default function Simulation() {
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [sim?.turns?.length]);
 
   const speak = useCallback((t) => {
-    if (!voice || !('speechSynthesis' in window)) return;
+    if (!voice) return;
+    const clean = t.replace(/^Hint:.*$/gim, '').trim();
+    if (!clean) return;
+    if (aiVoice) { serverSpeak(clean); return; }
+    if (!('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(t.replace(/^Hint:.*$/gim, ''));
+    const u = new SpeechSynthesisUtterance(clean);
     u.lang = 'en-IN';
     window.speechSynthesis.speak(u);
-  }, [voice]);
+  }, [voice, aiVoice]);
 
   async function send(message) {
     const body = (message ?? text).trim();
@@ -81,6 +88,22 @@ export default function Simulation() {
     rec.start();
   }
 
+  async function toggleRecording() {
+    if (recording) {
+      const r = recording;
+      setRecording(null);
+      try {
+        setBusy(true);
+        const text = (await transcribe(await r.stop())).trim();
+        setBusy(false);
+        if (text) await send(text); else setErr('I could not hear anything. Try again closer to the microphone.');
+      } catch (e) { setBusy(false); setErr(e.message); }
+      return;
+    }
+    try { setErr(''); setRecording(await recordWav()); }
+    catch { setErr('Microphone access was blocked. Allow it in your browser settings.'); }
+  }
+
   async function finish() {
     setBusy(true); setErr('');
     try { setSim(await api(`/api/simulations/${id}/finish`, { method: 'POST' })); }
@@ -95,7 +118,10 @@ export default function Simulation() {
     <>
       <div className="row">
         <Link to="/simulations">&larr; All simulations</Link>
-        <label className="inline"><input type="checkbox" checked={voice} onChange={(e) => setVoice(e.target.checked)} /> Speak replies aloud</label>
+        <div className="row" style={{ margin: 0 }}>
+          <label className="inline"><input type="checkbox" checked={voice} onChange={(e) => setVoice(e.target.checked)} /> Speak replies aloud</label>
+          <label className="inline"><input type="checkbox" checked={aiVoice} onChange={(e) => setAiVoice(e.target.checked)} /> AI voice (beta)</label>
+        </div>
       </div>
       <div className="card sim-head">
         <span className="avatar big">{initials(sim.personaName || 'AI')}</span>
@@ -120,7 +146,9 @@ export default function Simulation() {
           <form className="composer" onSubmit={(e) => { e.preventDefault(); send(); }}>
             <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Type your reply" aria-label="Your reply" />
             <button disabled={busy || !text.trim()}>Send</button>
-            <button type="button" className={listening ? 'rec' : 'ghost'} onClick={listen}><Icon name="mic" size={16} /> {listening ? 'Listening… tap to stop' : 'Speak'}</button>
+            {aiVoice
+              ? <button type="button" className={recording ? 'rec' : 'ghost'} onClick={toggleRecording} disabled={busy && !recording}><Icon name="mic" size={16} /> {recording ? 'Recording… tap to send' : 'Speak (AI voice)'}</button>
+              : <button type="button" className={listening ? 'rec' : 'ghost'} onClick={listen}><Icon name="mic" size={16} /> {listening ? 'Listening… tap to stop' : 'Speak'}</button>}
           </form>
           <button className="ghost" onClick={finish} disabled={busy || sim.turns.length < 3}><Icon name="check" size={16} /> End and get my evaluation</button>
         </>

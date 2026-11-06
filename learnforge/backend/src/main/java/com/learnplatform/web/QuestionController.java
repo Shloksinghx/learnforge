@@ -9,6 +9,7 @@ import com.learnplatform.domain.Question;
 import com.learnplatform.repo.CourseRepository;
 import com.learnplatform.repo.QuestionRepository;
 import com.learnplatform.service.QuestionGenerationService;
+import com.learnplatform.service.QuestionScoring;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -26,9 +27,10 @@ import org.springframework.web.server.ResponseStatusException;
 public class QuestionController {
     public record GenerateReq(@Min(1) @Max(20) int count,
                               @Pattern(regexp = "(?i)EASY|MEDIUM|HARD|MIXED") String difficulty,
-                              @Pattern(regexp = "(?i)MCQ|TRUE_FALSE|CASE_BASED") String type,
+                              @Pattern(regexp = "(?i)MCQ|TRUE_FALSE|CASE_BASED|MULTI_SELECT") String type,
                               @Size(max = 200) String topic) {}
     public record QuestionView(UUID id, String text, String kind, List<String> options, int correctIndex,
+                               List<Integer> correctIndexes,
                                String explanation, String difficulty, String status) {}
 
     private final CourseRepository courses;
@@ -101,7 +103,8 @@ public class QuestionController {
         } catch (Exception e) {
             opts = List.of();
         }
-        return new QuestionView(q.getId(), q.getText(), q.getKind(), opts, q.getCorrectIndex(), q.getExplanation(),
+        return new QuestionView(q.getId(), q.getText(), q.getKind(), opts, q.getCorrectIndex(),
+                QuestionScoring.correctSet(q), q.getExplanation(),
                 q.getDifficulty(), q.getStatus());
     }
 }

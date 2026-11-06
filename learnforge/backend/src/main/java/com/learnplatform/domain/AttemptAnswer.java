@@ -22,6 +22,8 @@ public class AttemptAnswer {
     private Boolean correct;
     @Transient private Instant createdAt;
 
+    @Column(name = "selected_json", columnDefinition = "text") private String selectedJson;
+
     @PrePersist
     void onCreate() {
         if (createdAt == null) createdAt = Instant.now();

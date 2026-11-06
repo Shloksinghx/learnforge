@@ -23,6 +23,8 @@ public class AppUser {
     private boolean active = true;
     @Column(name = "created_at") private Instant createdAt;
 
+    private String team;
+
     @PrePersist
     void onCreate() {
         if (createdAt == null) createdAt = Instant.now();

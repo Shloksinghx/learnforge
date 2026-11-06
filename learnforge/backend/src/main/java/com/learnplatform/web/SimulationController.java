@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/simulations")
 public class SimulationController {
-    public record StartReq(@NotNull UUID personaId, @Min(1) @Max(5) int difficulty) {}
+    public record StartReq(UUID personaId, UUID scenarioId, @Min(1) @Max(5) Integer difficulty) {}
     public record MessageReq(@NotBlank @Size(max = 4000) String text) {}
 
     private final SimulationService service;
@@ -22,7 +22,7 @@ public class SimulationController {
 
     @PostMapping
     public SimulationView start(@Valid @RequestBody StartReq r) {
-        return service.start(CurrentUser.get(), r.personaId(), r.difficulty());
+        return service.start(CurrentUser.get(), r.personaId(), r.scenarioId(), r.difficulty());
     }
 
     @GetMapping("/{id}")

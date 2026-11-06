@@ -24,11 +24,13 @@ public class ContentStructuringService {
             Create between 3 and 8 lessons that follow the document's own order. Each lesson should take
             2 to 5 minutes to read (about 200 to 400 words of body text).
             Respond with JSON only, in exactly this shape:
-            {"lessons":[{"title":"...","content":"plain-text body, no markdown headings",
-              "objectives":["..."],"keyConcepts":["..."],
+            {"lessons":[{"title":"...","module":"chapter or module name","content":"plain-text body, no markdown headings",
+              "objectives":["..."],"keyConcepts":["..."],"competencies":["skills the learner builds"],
               "definitions":[{"term":"...","meaning":"..."}],
-              "faqs":[{"q":"...","a":"..."}]}]}
-            Keep objectives to 2-4 items, key concepts to 3-6 items, and include definitions and FAQs only when the document supports them.
+              "faqs":[{"q":"...","a":"..."}],
+              "scenarios":["a short realistic situation to practise"],"potentialQuestions":["a question this lesson can be tested with"]}]}
+            Keep objectives to 2-4 items, key concepts to 3-6 items, and include the other lists only when the document supports them.
+            Lessons from the same chapter must share the same "module" value.
             """;
 
     private final AiClient ai;
@@ -66,6 +68,7 @@ public class ContentStructuringService {
             StringBuilder sb = new StringBuilder(body);
             list(sb, "Learning objectives", n.path("objectives"));
             list(sb, "Key concepts", n.path("keyConcepts"));
+            list(sb, "Competencies", n.path("competencies"));
             JsonNode defs = n.path("definitions");
             if (defs.isArray() && !defs.isEmpty()) {
                 sb.append("\n\nDefinitions");
@@ -76,7 +79,11 @@ public class ContentStructuringService {
                 sb.append("\n\nFAQs");
                 for (JsonNode f : faqs) sb.append("\nQ: ").append(f.path("q").asText()).append("\nA: ").append(f.path("a").asText());
             }
+            list(sb, "Practice scenarios", n.path("scenarios"));
+            list(sb, "Questions to think about", n.path("potentialQuestions"));
             Lesson l = new Lesson();
+            String module = n.path("module").asText("").trim();
+            l.setModuleTitle(module.isEmpty() ? null : module.length() > 200 ? module.substring(0, 200) : module);
             l.setCourseId(course.getId());
             l.setTitle(title.length() > 255 ? title.substring(0, 255) : title);
             l.setContent(sb.toString());

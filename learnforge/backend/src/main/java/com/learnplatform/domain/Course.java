@@ -21,6 +21,13 @@ public class Course {
     private String status = "DRAFT";
     @Column(name = "created_at") private Instant createdAt;
 
+    private boolean shared;
+    @Column(name = "certificate_title") private String certificateTitle;
+    @Column(name = "pass_mark") private int passMark = 60;
+    @Column(name = "exam_count") private int examCount = 20;
+    @Column(name = "exam_minutes") private int examMinutes = 30;
+    @Column(name = "requires_simulation") private boolean requiresSimulation;
+
     @PrePersist
     void onCreate() {
         if (createdAt == null) createdAt = Instant.now();

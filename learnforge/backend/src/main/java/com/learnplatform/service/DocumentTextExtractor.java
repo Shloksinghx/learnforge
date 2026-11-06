@@ -25,6 +25,7 @@ import org.springframework.web.server.ResponseStatusException;
 /** Pulls plain text out of PDF, Word, PowerPoint, Excel and text files. */
 @Service
 public class DocumentTextExtractor {
+    public static final String NO_TEXT = "No readable text found. Scanned documents need OCR first.";
 
     public String extract(String filename, byte[] data) {
         String n = filename == null ? "" : filename.toLowerCase();
@@ -75,8 +76,7 @@ public class DocumentTextExtractor {
             String cleaned = text == null ? "" : text.replace("\r", "").replaceAll("[ \\t]+", " ")
                     .replaceAll("\\n{3,}", "\n\n").trim();
             if (cleaned.length() < 40) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "No readable text found. Scanned documents need OCR first.");
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, NO_TEXT);
             }
             return cleaned;
         } catch (ResponseStatusException e) {

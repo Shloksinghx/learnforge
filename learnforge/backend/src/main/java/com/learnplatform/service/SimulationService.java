@@ -32,10 +32,12 @@ public class SimulationService {
     private final AiClient ai;
     private final ObjectMapper mapper;
     private final GamificationService gamification;
+    private final ScenarioRepository scenarios;
 
     public SimulationService(SimulationRepository sims, SimulationTurnRepository turns, PersonaRepository personas,
                              CourseRepository courses, LessonRepository lessons, AiClient ai, ObjectMapper mapper,
-                             GamificationService gamification) {
+                             GamificationService gamification, ScenarioRepository scenarios) {
+        this.scenarios = scenarios;
         this.sims = sims;
         this.turns = turns;
         this.personas = personas;
@@ -46,21 +48,31 @@ public class SimulationService {
         this.gamification = gamification;
     }
 
-    public SimulationView start(AuthUser user, UUID personaId, int difficulty) {
+    public SimulationView start(AuthUser user, UUID personaId, UUID scenarioId, Integer difficultyIn) {
+        Scenario scenario = null;
+        UUID pid = personaId;
+        if (scenarioId != null) {
+            scenario = scenarios.findById(scenarioId).filter(x -> x.getOrgId().equals(user.orgId()))
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Scenario not found"));
+            pid = scenario.getPersonaId();
+        }
+        if (pid == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose a persona or a scenario");
+        int difficulty = difficultyIn != null ? difficultyIn : scenario != null ? scenario.getDifficulty() : 3;
         if (difficulty < 1 || difficulty > 5) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Difficulty must be 1 to 5");
         }
-        Persona p = personas.findById(personaId)
+        Persona p = personas.findById(pid)
                 .filter(x -> x.getOrgId().equals(user.orgId()))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Persona not found"));
         Simulation s = new Simulation();
         s.setOrgId(user.orgId());
         s.setUserId(user.userId());
         s.setPersonaId(p.getId());
+        s.setScenarioId(scenarioId);
         s.setDifficulty(difficulty);
         sims.save(s);
 
-        String opening = ai.chat(personaPrompt(p, difficulty), List.of(new ChatMessage("user", SEED)), false);
+        String opening = ai.chat(personaPrompt(effective(s), difficulty), List.of(new ChatMessage("user", SEED)), false);
         saveTurn(s.getId(), "PERSONA", opening);
         return view(s);
     }
@@ -70,7 +82,7 @@ public class SimulationService {
         if (!"ACTIVE".equals(s.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Simulation already finished");
         }
-        Persona p = personas.findById(s.getPersonaId()).orElseThrow();
+        Persona p = effective(s);
         saveTurn(s.getId(), "LEARNER", learnerText);
         String answer = ai.chat(personaPrompt(p, s.getDifficulty()), history(s.getId()), false);
         saveTurn(s.getId(), "PERSONA", answer);
@@ -80,7 +92,7 @@ public class SimulationService {
     public SimulationView finish(AuthUser user, UUID simId) {
         Simulation s = owned(user, simId);
         if ("ACTIVE".equals(s.getStatus())) {
-            Persona p = personas.findById(s.getPersonaId()).orElseThrow();
+            Persona p = effective(s);
             StringBuilder transcript = new StringBuilder();
             for (SimulationTurn t : turns.findBySimulationIdOrderByCreatedAtAsc(s.getId())) {
                 transcript.append("LEARNER".equals(t.getSpeaker()) ? "Learner: " : p.getName() + ": ")
@@ -143,10 +155,46 @@ public class SimulationService {
         if (s.getEvaluationJson() != null) {
             try { eval = mapper.readTree(s.getEvaluationJson()); } catch (Exception ignored) { }
         }
-        Persona p = personas.findById(s.getPersonaId()).orElse(null);
+        Persona p = effectiveOrNull(s);
         return new SimulationView(s.getId(), s.getPersonaId(), p == null ? null : p.getName(),
                 p == null ? null : p.getProfession(), p == null ? null : p.getTimeLimitMinutes(),
                 s.getCreatedAt(), s.getDifficulty(), s.getStatus(), tv, s.getOverallScore(), eval);
+    }
+
+    private Persona effectiveOrNull(Simulation s) {
+        try {
+            return effective(s);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** The persona with the scenario's details laid over it, when the simulation was started from a scenario. */
+    private Persona effective(Simulation s) {
+        Persona base = personas.findById(s.getPersonaId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Persona not found"));
+        Scenario sc = s.getScenarioId() == null ? null : scenarios.findById(s.getScenarioId()).orElse(null);
+        if (sc == null) return base;
+        Persona p = new Persona();
+        p.setId(base.getId());
+        p.setName(base.getName());
+        p.setProfession(base.getProfession());
+        p.setAge(base.getAge());
+        p.setPersonality(base.getPersonality());
+        p.setCommunication(base.getCommunication());
+        p.setKnowledgeLevel(base.getKnowledgeLevel());
+        p.setBehaviour(base.getBehaviour());
+        p.setObjections(base.getObjections());
+        p.setScenario(sc.getDescription());
+        p.setObjective(sc.getObjective());
+        p.setExpectedBehaviour(sc.getExpectedBehaviour());
+        p.setMandatoryInfo(sc.getMandatoryInfo());
+        p.setProhibitedStatements(sc.getProhibitedStatements());
+        String criteria = (sc.getSuccessCriteria() == null ? "" : sc.getSuccessCriteria())
+                + (sc.getEvaluationCriteria() == null || sc.getEvaluationCriteria().isBlank() ? "" : "\nEvaluation criteria: " + sc.getEvaluationCriteria());
+        p.setSuccessCriteria(criteria.isBlank() ? null : criteria);
+        p.setTimeLimitMinutes(sc.getTimeLimitMinutes());
+        return p;
     }
 
     private static String nz(String v) {

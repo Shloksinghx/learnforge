@@ -18,6 +18,8 @@ public class Organisation {
     private String name;
     @Column(name = "created_at") private Instant createdAt;
 
+    private String plan = "PRO";
+
     @PrePersist
     void onCreate() {
         if (createdAt == null) createdAt = Instant.now();

@@ -7,15 +7,20 @@ import ScoreRing from '../ScoreRing.jsx';
 const L = ['A', 'B', 'C', 'D'];
 const mmss = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 const dur = (s) => (s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`);
-const KIND = { TRUE_FALSE: 'True or false', CASE_BASED: 'Case study', MCQ: '' };
+const KIND = { TRUE_FALSE: 'True or false', CASE_BASED: 'Case study', MULTI_SELECT: 'Select all that apply', MCQ: '' };
+const asList = (v) => (Array.isArray(v) ? v : v == null ? [] : [v]);
+const hasAnswer = (v) => asList(v).length > 0;
 
 function Options({ q, chosen, onPick, reveal }) {
+  const multi = q.kind === 'MULTI_SELECT';
+  const sel = asList(chosen);
+  const correct = q.correctIndexes || (q.correctIndex != null ? [q.correctIndex] : []);
   return q.options.map((o, i) => {
-    const isChosen = chosen === i;
-    const cls = reveal ? (i === q.correctIndex ? 'correct' : isChosen ? 'wrong' : '') : isChosen ? 'selected' : '';
+    const isChosen = sel.includes(i);
+    const cls = reveal ? (correct.includes(i) ? 'correct' : isChosen ? 'wrong' : '') : isChosen ? 'selected' : '';
     return (
       <label key={i} className={`option ${cls}`}>
-        <input type="radio" name={q.id} checked={isChosen} disabled={reveal} onChange={() => onPick(i)} />
+        <input type={multi ? 'checkbox' : 'radio'} name={q.id} checked={isChosen} disabled={reveal} onChange={() => onPick(i)} />
         <span className="letter">{L[i]}</span>{o}
       </label>
     );
@@ -52,20 +57,28 @@ export default function Test() {
 
   // countdown, and auto-submit when time runs out
   useEffect(() => {
-    if (left == null || attempt?.status !== 'IN_PROGRESS' || attempt.mode !== 'STANDARD') return undefined;
+    if (left == null || attempt?.status !== 'IN_PROGRESS' || attempt.mode === 'ADAPTIVE') return undefined;
     if (left <= 0) { submit(true); return undefined; }
     const t = setTimeout(() => setLeft((s) => s - 1), 1000);
     return () => clearTimeout(t);
   }, [left, attempt?.status]);
 
+  const pick = (q, i) => setPicked((p) => {
+    if (q.kind === 'MULTI_SELECT') {
+      const cur = asList(p[q.id]);
+      return { ...p, [q.id]: cur.includes(i) ? cur.filter((x) => x !== i) : [...cur, i].sort() };
+    }
+    return { ...p, [q.id]: i };
+  });
+  const payload = (q) => (Array.isArray(picked[q.id]) ? { questionId: q.id, selectedIndexes: picked[q.id] } : { questionId: q.id, selectedIndex: picked[q.id] ?? null });
+
   async function submit(auto = false) {
     if (submitting.current || !attempt) return;
-    const unanswered = attempt.questions.filter((q) => picked[q.id] == null).length;
+    const unanswered = attempt.questions.filter((q) => !hasAnswer(picked[q.id])).length;
     if (!auto && unanswered > 0 && !window.confirm(`${unanswered} question(s) are unanswered. Submit anyway?`)) return;
     submitting.current = true; setErr(''); setBusy(true);
     try {
-      const answers = attempt.questions.map((q) => ({ questionId: q.id, selectedIndex: picked[q.id] ?? null }));
-      setAttempt(await api(`/api/attempts/${attemptId}/submit`, { method: 'POST', body: { answers } }));
+      setAttempt(await api(`/api/attempts/${attemptId}/submit`, { method: 'POST', body: { answers: attempt.questions.map(payload) } }));
       sessionStorage.removeItem(storeKey);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (e) { setErr(e.message); submitting.current = false; } finally { setBusy(false); }
@@ -73,32 +86,35 @@ export default function Test() {
 
   async function checkAdaptive(q) {
     setErr(''); setBusy(true);
-    try { setFeedback(await api(`/api/attempts/${attemptId}/answer`, { method: 'POST', body: { questionId: q.id, selectedIndex: picked[q.id] } })); }
+    try { setFeedback(await api(`/api/attempts/${attemptId}/answer`, { method: 'POST', body: payload(q) })); }
     catch (e) { setErr(e.message); } finally { setBusy(false); }
   }
 
   if (!attempt) return <p>{err || 'Loading test…'}</p>;
   const done = attempt.status === 'SUBMITTED';
   const adaptive = attempt.mode === 'ADAPTIVE';
+  const exam = attempt.mode === 'EXAM';
+  const heading = attempt.title || attempt.courseTitle;
+  const modeChip = exam ? <span className="chip chip-draft">Final exam</span> : attempt.title ? <span className="chip">Mock test</span> : adaptive ? <span className="chip chip-glow">Adaptive practice</span> : null;
 
   /* ---------- results ---------- */
   if (done) {
     return (
       <>
         <p><Link to={`/courses/${attempt.courseId}`}>&larr; Back to course</Link></p>
-        <h1>{attempt.courseTitle}</h1>
+        <h1>{heading}</h1> {modeChip}
         {err && <p className="error" role="alert">{err}</p>}
         <div className="card result-hero pad-lg">
           <ScoreRing value={attempt.score} size={140} />
           <div>
             <h2>{attempt.passed ? 'You passed!' : 'Not passed yet'}</h2>
             <p className="empty">
-              {attempt.correctCount} correct, {attempt.wrongCount} wrong, {attempt.total - attempt.correctCount - attempt.wrongCount} unanswered
+              {attempt.correctCount} correct, {attempt.wrongCount} wrong, {Math.max(0, attempt.total - attempt.correctCount - attempt.wrongCount)} unanswered
               {attempt.timeTakenSeconds != null && `, finished in ${dur(attempt.timeTakenSeconds)}`}.
-              {attempt.negativeMarking && ' Negative marking was on.'} {adaptive && 'Adaptive practice.'} The pass mark is 60%.
+              {attempt.negativeMarking && ' Negative marking was on.'} The pass mark is {attempt.passMark}%.
             </p>
             {attempt.certificateCode && <a className="btn" href={`/verify/${attempt.certificateCode}`}><Icon name="award" size={16} /> View your certificate</a>}
-            {attempt.certificateNote && <p className="error">{attempt.certificateNote}</p>}
+            {attempt.passed && !exam && <p>Nice work. Check the Certification steps on the course page for what comes next.</p>}
             {!attempt.passed && <p>Review the explanations below, then try again from the course page.</p>}
           </div>
         </div>
@@ -121,8 +137,8 @@ export default function Test() {
         {attempt.questions.map((q, n) => (
           <fieldset key={q.id} className="card qcard" disabled>
             <legend>{n + 1}. {KIND[q.kind] && <span className="chip">{KIND[q.kind]}</span>} {q.text}</legend>
-            <Options q={q} chosen={q.selectedIndex} reveal onPick={() => {}} />
-            <p className="explain"><b className={q.correct ? 'ok' : 'bad'}>{q.correct ? 'Correct. ' : q.selectedIndex == null ? 'Not answered. ' : 'Incorrect. '}</b>{q.explanation}</p>
+            <Options q={q} chosen={q.selectedIndexes} reveal onPick={() => {}} />
+            <p className="explain"><b className={q.correct ? 'ok' : 'bad'}>{q.correct ? 'Correct. ' : !hasAnswer(q.selectedIndexes) ? 'Not answered. ' : 'Incorrect. '}</b>{q.explanation}</p>
           </fieldset>
         ))}
       </>
@@ -136,9 +152,9 @@ export default function Test() {
     return (
       <>
         <p><Link to={`/courses/${attempt.courseId}`}>&larr; Back to course</Link></p>
-        <h1>{attempt.courseTitle}</h1>
+        <h1>{heading}</h1>
         <div className="card test-bar">
-          <span className="chip chip-glow">Adaptive practice</span>
+          {modeChip}
           <small>Question {Math.min(answeredCount + 1, attempt.total)} of {attempt.total}</small>
           <div className="progress"><i style={{ width: `${Math.round(100 * answeredCount / attempt.total)}%` }} /></div>
         </div>
@@ -158,9 +174,9 @@ export default function Test() {
         ) : q && (
           <fieldset className="card qcard">
             <legend>{KIND[q.kind] && <span className="chip">{KIND[q.kind]}</span>} {q.text}</legend>
-            <Options q={q} chosen={picked[q.id]} onPick={(i) => setPicked({ ...picked, [q.id]: i })} />
+            <Options q={q} chosen={picked[q.id]} onPick={(i) => pick(q, i)} />
             <div className="row" style={{ justifyContent: 'flex-end', marginTop: '.8rem', marginBottom: 0 }}>
-              <button onClick={() => checkAdaptive(q)} disabled={busy || picked[q.id] == null}>Check answer</button>
+              <button onClick={() => checkAdaptive(q)} disabled={busy || !hasAnswer(picked[q.id])}>Check answer</button>
             </div>
           </fieldset>
         )}
@@ -168,29 +184,29 @@ export default function Test() {
     );
   }
 
-  /* ---------- standard mock test ---------- */
+  /* ---------- standard mock test, named mock test and final exam ---------- */
   const q = attempt.questions[cur];
-  const answered = attempt.questions.filter((x) => picked[x.id] != null).length;
+  const answered = attempt.questions.filter((x) => hasAnswer(picked[x.id])).length;
   return (
     <>
       <p><Link to={`/courses/${attempt.courseId}`}>&larr; Back to course</Link></p>
-      <h1>{attempt.courseTitle}</h1>
+      <h1>{heading}</h1> {modeChip}
       {err && <p className="error" role="alert">{err}</p>}
       <div className="card test-bar">
         {left != null && <span className={`timer ${left < 60 ? 'low' : ''}`}><Icon name="clock" size={16} /> {mmss(Math.max(0, left))}</span>}
         <small>{answered} of {attempt.total} answered{attempt.negativeMarking ? ', negative marking on' : ''}</small>
         <div className="progress"><i style={{ width: `${Math.round(100 * answered / attempt.total)}%` }} /></div>
-        <button onClick={() => submit(false)} disabled={busy}>Submit test</button>
+        <button onClick={() => submit(false)} disabled={busy}>Submit {exam ? 'exam' : 'test'}</button>
       </div>
 
       <div className="test-layout">
         <fieldset className="card qcard">
           <legend>{cur + 1}. {KIND[q.kind] && <span className="chip">{KIND[q.kind]}</span>} {q.text}</legend>
-          <Options q={q} chosen={picked[q.id]} onPick={(i) => setPicked({ ...picked, [q.id]: i })} />
+          <Options q={q} chosen={picked[q.id]} onPick={(i) => pick(q, i)} />
           <div className="row" style={{ marginTop: '1rem', marginBottom: 0 }}>
             <button className="ghost" onClick={() => setCur(Math.max(0, cur - 1))} disabled={cur === 0}>Previous</button>
             <button className={`ghost ${flagged[q.id] ? 'flagged' : ''}`} onClick={() => setFlagged({ ...flagged, [q.id]: !flagged[q.id] })}><Icon name="flag" size={16} /> {flagged[q.id] ? 'Flagged' : 'Flag for review'}</button>
-            {picked[q.id] != null && <button className="ghost" onClick={() => { const p = { ...picked }; delete p[q.id]; setPicked(p); }}>Clear</button>}
+            {hasAnswer(picked[q.id]) && <button className="ghost" onClick={() => { const p = { ...picked }; delete p[q.id]; setPicked(p); }}>Clear</button>}
             <button onClick={() => setCur(Math.min(attempt.total - 1, cur + 1))} disabled={cur >= attempt.total - 1}>Next</button>
           </div>
         </fieldset>
@@ -199,8 +215,8 @@ export default function Test() {
           <h3>Questions</h3>
           <div className="palette-grid">
             {attempt.questions.map((x, i) => (
-              <button key={x.id} className={`pal ${i === cur ? 'current' : ''} ${picked[x.id] != null ? 'answered' : ''} ${flagged[x.id] ? 'flag' : ''}`}
-                onClick={() => setCur(i)} aria-label={`Question ${i + 1}${picked[x.id] != null ? ', answered' : ''}${flagged[x.id] ? ', flagged' : ''}`}>{i + 1}</button>
+              <button key={x.id} className={`pal ${i === cur ? 'current' : ''} ${hasAnswer(picked[x.id]) ? 'answered' : ''} ${flagged[x.id] ? 'flag' : ''}`}
+                onClick={() => setCur(i)} aria-label={`Question ${i + 1}${hasAnswer(picked[x.id]) ? ', answered' : ''}${flagged[x.id] ? ', flagged' : ''}`}>{i + 1}</button>
             ))}
           </div>
           <small>Filled = answered, amber = flagged</small>

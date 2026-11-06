@@ -2,6 +2,7 @@ package com.learnplatform.service;
 
 import com.learnplatform.domain.AppUser;
 import com.learnplatform.domain.Certificate;
+import com.learnplatform.domain.Course;
 import com.learnplatform.repo.CertificateRepository;
 import com.learnplatform.repo.OrganisationRepository;
 import java.security.SecureRandom;
@@ -19,10 +20,15 @@ public class CertificateService {
     private final SecureRandom random = new SecureRandom();
     private final CertificateRepository certs;
     private final OrganisationRepository orgs;
+    private final NotificationService notifications;
+    private final UsageService usage;
 
-    public CertificateService(CertificateRepository certs, OrganisationRepository orgs) {
+    public CertificateService(CertificateRepository certs, OrganisationRepository orgs,
+                              NotificationService notifications, UsageService usage) {
         this.certs = certs;
         this.orgs = orgs;
+        this.notifications = notifications;
+        this.usage = usage;
     }
 
     public Certificate issue(AppUser learner, String title, int score, int validityMonths) {
@@ -37,7 +43,19 @@ public class CertificateService {
         Instant now = Instant.now();
         c.setCreatedAt(now);
         c.setValidUntil(now.atZone(ZoneOffset.UTC).plusMonths(validityMonths).toInstant());
-        return certs.save(c);
+        Certificate saved = certs.save(c);
+        usage.count(learner.getOrgId(), UsageService.CERTIFICATE);
+        notifications.notify(learner.getOrgId(), learner.getId(), "Certificate earned",
+                saved.getTitle() + " is ready. Open it to download the PDF.", "/verify/" + saved.getCode(),
+                "cert:" + saved.getCode());
+        return saved;
+    }
+
+    /** The certificate name: the course's custom title, or a default built from the course name. */
+    public static String titleFor(Course c) {
+        String custom = c.getCertificateTitle();
+        String t = custom != null && !custom.isBlank() ? custom.trim() : "Certificate of Completion: " + c.getTitle();
+        return t.length() > 255 ? t.substring(0, 255) : t;
     }
 
     public Optional<Certificate> findActive(UUID learnerId, String title) {

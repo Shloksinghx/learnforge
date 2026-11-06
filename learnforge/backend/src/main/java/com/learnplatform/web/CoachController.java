@@ -91,7 +91,7 @@ public class CoachController {
             if (!seen.add(a.getCourseId())) continue;
             long tries = submitted.stream().filter(x -> x.getCourseId().equals(a.getCourseId())).count();
             String title = courses.findById(a.getCourseId()).map(Course::getTitle).orElse("a course");
-            if (a.getScore() < TestController.PASS_MARK) {
+            if (a.getScore() < a.getPassMark()) {
                 out.add("You scored " + a.getScore() + "% on \"" + title + "\" and have attempted it " + tries
                         + (tries == 1 ? " time" : " times") + ". Review the lessons, then try again.");
             } else if (tries > 1) {

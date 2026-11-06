@@ -24,10 +24,11 @@ public class AnalyticsController {
     public record ExpiringCert(String code, String learnerName, String title, Instant validUntil) {}
     public record CompetencyRow(String key, String label, Integer score) {}
     public record CourseRow(UUID id, String title, int enrolled, int completed, int attempts, int averageScore, int passRate) {}
+    public record TeamRow(String team, int learners, int xp, int averageScore, List<CompetencyRow> competencies) {}
     public record Overview(int learners, int activeLearners, int publishedCourses, int completionRate,
                            int averageScore, int passRate, int testsTaken, int certificatesIssued,
                            List<ExpiringCert> expiring, List<CompetencyRow> competencies, List<CourseRow> courses,
-                           List<GamificationService.LeaderRow> top) {}
+                           List<GamificationService.LeaderRow> top, List<TeamRow> teams) {}
 
     private final AppUserRepository users;
     private final CourseRepository courses;
@@ -62,7 +63,7 @@ public class AnalyticsController {
     @GetMapping("/analytics")
     public Overview overview() {
         AuthUser me = CurrentUser.get();
-        Access.requireAuthor(me);
+        Access.requireViewer(me);
         Set<UUID> learnerIds = learners(me.orgId()).stream().map(AppUser::getId).collect(Collectors.toSet());
 
         Set<UUID> active = xp.findByOrgIdAndCreatedAtAfter(me.orgId(), Instant.now().minus(7, ChronoUnit.DAYS)).stream()
@@ -111,15 +112,34 @@ public class AnalyticsController {
             comp.add(new CompetencyRow(l.getKey(), l.getValue(), avgComp.get(l.getKey())));
         }
 
+        // teams: score, XP and competencies per team (the "team level" view)
+        Map<UUID, Integer> xpByUser = new HashMap<>();
+        for (XpEvent e : xp.findByOrgId(me.orgId())) xpByUser.merge(e.getUserId(), e.getPoints(), Integer::sum);
+        Map<String, List<AppUser>> byTeam = learners(me.orgId()).stream()
+                .collect(Collectors.groupingBy(u -> u.getTeam() == null ? "No team" : u.getTeam()));
+        List<TeamRow> teamRows = new ArrayList<>();
+        for (Map.Entry<String, List<AppUser>> t : new TreeMap<>(byTeam).entrySet()) {
+            Set<UUID> ids = t.getValue().stream().map(AppUser::getId).collect(Collectors.toSet());
+            int teamXp = ids.stream().mapToInt(i -> xpByUser.getOrDefault(i, 0)).sum();
+            List<Attempt> teamDone = done.stream().filter(a -> ids.contains(a.getUserId())).toList();
+            Map<String, Integer> tc = competencies.averages(sims.stream().filter(s -> ids.contains(s.getUserId())).toList());
+            List<CompetencyRow> trows = new ArrayList<>();
+            for (Map.Entry<String, String> l : CompetencyService.LABELS.entrySet()) {
+                trows.add(new CompetencyRow(l.getKey(), l.getValue(), tc.get(l.getKey())));
+            }
+            teamRows.add(new TeamRow(t.getKey(), ids.size(), teamXp, avg(teamDone), trows));
+        }
+
         int completion = enrolledTotal == 0 ? 0 : Math.round(100f * completedTotal / enrolledTotal);
         return new Overview(learnerIds.size(), active.size(), published, completion, avg(done), passRate(done),
-                done.size(), certs.size(), expiring, comp, rows, gamification.leaderboard(me.orgId(), me.userId(), 5));
+                done.size(), certs.size(), expiring, comp, rows, gamification.leaderboard(me.orgId(), me.userId(), 5),
+                teamRows);
     }
 
     @GetMapping("/export/results.csv")
     public ResponseEntity<String> exportResults() {
         AuthUser me = CurrentUser.get();
-        Access.requireAuthor(me);
+        Access.requireViewer(me);
         Map<UUID, AppUser> byId = users.findByOrgIdOrderByCreatedAtDesc(me.orgId()).stream()
                 .collect(Collectors.toMap(AppUser::getId, u -> u));
         Map<UUID, String> titles = courses.findByOrgIdOrderByCreatedAtDesc(me.orgId()).stream()
@@ -134,7 +154,7 @@ public class AnalyticsController {
                     csv.append(cell(u.getFullName())).append(',').append(cell(u.getEmail())).append(',')
                        .append(cell(titles.getOrDefault(a.getCourseId(), "Course"))).append(',')
                        .append(a.getScore()).append(',').append(a.getCorrectCount()).append(',').append(a.getTotal()).append(',')
-                       .append(a.getScore() != null && a.getScore() >= TestController.PASS_MARK ? "Passed" : "Not passed").append(',')
+                       .append(a.getScore() != null && a.getScore() >= a.getPassMark() ? "Passed" : "Not passed").append(',')
                        .append(a.getMode()).append(',').append(a.getSubmittedAt()).append('\n');
                 });
         return ResponseEntity.ok()
@@ -152,7 +172,7 @@ public class AnalyticsController {
     }
 
     private static int passRate(List<Attempt> as) {
-        return as.isEmpty() ? 0 : Math.round(100f * as.stream().filter(a -> a.getScore() >= TestController.PASS_MARK).count() / as.size());
+        return as.isEmpty() ? 0 : Math.round(100f * as.stream().filter(a -> a.getScore() >= a.getPassMark()).count() / as.size());
     }
 
     /** CSV cell with quotes escaped, and a leading apostrophe to stop spreadsheet formula injection. */

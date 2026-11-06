@@ -32,6 +32,8 @@ public class Persona {
     @Column(name = "time_limit_minutes") private Integer timeLimitMinutes;
     @Column(name = "created_at") private Instant createdAt;
 
+    private boolean shared;
+
     @PrePersist
     void onCreate() {
         if (createdAt == null) createdAt = Instant.now();

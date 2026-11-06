@@ -1,8 +1,9 @@
 import { Navigate, NavLink, Route, Routes, Link, useNavigate } from 'react-router-dom';
 import { session } from './api.js';
-import { isAdmin } from './roles.js';
+import { isAdmin, isManager, isViewer, isCertifier } from './roles.js';
 import { initials, prettyRole } from './ui.js';
 import Icon from './Icons.jsx';
+import NotificationBell from './NotificationBell.jsx';
 import Login from './pages/Login.jsx';
 import Home from './pages/Home.jsx';
 import Courses from './pages/Courses.jsx';
@@ -14,20 +15,23 @@ import Simulation from './pages/Simulation.jsx';
 import Users from './pages/Users.jsx';
 import Leaderboard from './pages/Leaderboard.jsx';
 import Insights from './pages/Insights.jsx';
+import Paths from './pages/Paths.jsx';
+import Marketplace from './pages/Marketplace.jsx';
+import Certificates from './pages/Certificates.jsx';
+import Plan from './pages/Plan.jsx';
 import Verify from './pages/Verify.jsx';
 
 function Protected({ children }) {
   return session.token ? children : <Navigate to="/login" replace />;
 }
 
-function AdminOnly({ children }) {
-  return isAdmin(session.user) ? children : <Navigate to="/" replace />;
+function Guard({ allow, children }) {
+  return allow(session.user) ? children : <Navigate to="/" replace />;
 }
 
 function Shell({ children }) {
   const nav = useNavigate();
   const user = session.user;
-  const admin = isAdmin(user);
   return (
     <>
       <header className="bar">
@@ -36,12 +40,17 @@ function Shell({ children }) {
           <NavLink to="/" end><Icon name="home" size={16} /> Home</NavLink>
           <NavLink to="/my-courses"><Icon name="book" size={16} /> My courses</NavLink>
           <NavLink to="/courses"><Icon name="grid" size={16} /> Courses</NavLink>
+          <NavLink to="/paths"><Icon name="route" size={16} /> Paths</NavLink>
           <NavLink to="/simulations"><Icon name="chat" size={16} /> Simulations</NavLink>
           <NavLink to="/leaderboard"><Icon name="trophy" size={16} /> Leaderboard</NavLink>
-          {admin && <NavLink to="/insights"><Icon name="chart" size={16} /> Insights</NavLink>}
-          {admin && <NavLink to="/studio"><Icon name="sparkles" size={16} /> AI Question Studio</NavLink>}
-          {admin && <NavLink to="/people"><Icon name="users" size={16} /> People</NavLink>}
+          {isViewer(user) && <NavLink to="/insights"><Icon name="chart" size={16} /> Insights</NavLink>}
+          {isAdmin(user) && <NavLink to="/studio"><Icon name="sparkles" size={16} /> AI Question Studio</NavLink>}
+          {isViewer(user) && <NavLink to="/people"><Icon name="users" size={16} /> People</NavLink>}
+          {isCertifier(user) && <NavLink to="/certificates"><Icon name="award" size={16} /> Certificates</NavLink>}
+          {isAdmin(user) && <NavLink to="/marketplace"><Icon name="store" size={16} /> Marketplace</NavLink>}
+          {isAdmin(user) && <NavLink to="/plan"><Icon name="card" size={16} /> Plan</NavLink>}
         </nav>
+        <NotificationBell />
         <div className="user-chip">
           <span className="avatar">{initials(user?.fullName)}</span>
           <div><b>{user?.fullName}</b><small>{prettyRole(user?.role)}</small></div>
@@ -56,7 +65,7 @@ function Shell({ children }) {
 }
 
 const page = (el) => <Protected><Shell>{el}</Shell></Protected>;
-const adminPage = (el) => <Protected><AdminOnly><Shell>{el}</Shell></AdminOnly></Protected>;
+const guarded = (allow, el) => <Protected><Guard allow={allow}><Shell>{el}</Shell></Guard></Protected>;
 
 export default function App() {
   return (
@@ -67,10 +76,14 @@ export default function App() {
       <Route path="/my-courses" element={page(<Courses mine />)} />
       <Route path="/courses" element={page(<Courses />)} />
       <Route path="/courses/:id" element={page(<CourseDetail />)} />
-      <Route path="/studio" element={adminPage(<Studio />)} />
-      <Route path="/studio/:courseId" element={adminPage(<Studio />)} />
-      <Route path="/people" element={adminPage(<Users />)} />
-      <Route path="/insights" element={adminPage(<Insights />)} />
+      <Route path="/paths" element={page(<Paths />)} />
+      <Route path="/studio" element={guarded(isAdmin, <Studio />)} />
+      <Route path="/studio/:courseId" element={guarded(isAdmin, <Studio />)} />
+      <Route path="/people" element={guarded(isViewer, <Users />)} />
+      <Route path="/insights" element={guarded(isViewer, <Insights />)} />
+      <Route path="/certificates" element={guarded(isCertifier, <Certificates />)} />
+      <Route path="/marketplace" element={guarded(isAdmin, <Marketplace />)} />
+      <Route path="/plan" element={guarded(isAdmin, <Plan />)} />
       <Route path="/leaderboard" element={page(<Leaderboard />)} />
       <Route path="/test/:attemptId" element={page(<Test />)} />
       <Route path="/simulations" element={page(<Simulations />)} />

@@ -29,6 +29,9 @@ public class Attempt {
     @Column(name = "started_at") private Instant createdAt;
     @Column(name = "submitted_at") private Instant submittedAt;
 
+    @Column(name = "pass_mark") private int passMark = 60;
+    @Column(name = "mock_test_id") private UUID mockTestId;
+
     @PrePersist
     void onCreate() {
         if (createdAt == null) createdAt = Instant.now();

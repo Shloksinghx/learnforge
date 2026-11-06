@@ -25,6 +25,8 @@ public class Question {
     private String status = "DRAFT";
     @Column(name = "created_at") private Instant createdAt;
 
+    @Column(name = "correct_json", columnDefinition = "text") private String correctJson;
+
     @PrePersist
     void onCreate() {
         if (createdAt == null) createdAt = Instant.now();

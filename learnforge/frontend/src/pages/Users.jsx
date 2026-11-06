@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
-import { api } from '../api.js';
+import { api, session } from '../api.js';
+import { isAdmin } from '../roles.js';
 import { initials, prettyRole } from '../ui.js';
 import Icon from '../Icons.jsx';
 
 export default function Users() {
+  const admin = isAdmin(session.user);
   const [users, setUsers] = useState([]);
-  const [form, setForm] = useState({ fullName: '', email: '', password: '', role: 'LEARNER' });
+  const [form, setForm] = useState({ fullName: '', email: '', password: '', role: 'LEARNER', team: '' });
   const [err, setErr] = useState('');
   const [ok, setOk] = useState('');
   const [busy, setBusy] = useState(false);
@@ -18,42 +20,58 @@ export default function Users() {
     try {
       await api('/api/users', { method: 'POST', body: form });
       setOk(`${form.fullName} can now sign in with ${form.email}.`);
-      setForm({ fullName: '', email: '', password: '', role: 'LEARNER' });
+      setForm({ fullName: '', email: '', password: '', role: 'LEARNER', team: '' });
       load();
     } catch (ex) { setErr(ex.message); } finally { setBusy(false); }
+  }
+
+  async function saveTeam(u, team) {
+    if ((u.team || '') === team.trim()) return;
+    setErr('');
+    try { await api(`/api/users/${u.id}/team`, { method: 'PUT', body: { team } }); load(); } catch (e) { setErr(e.message); }
   }
 
   return (
     <>
       <div className="page-head">
-        <div><span className="eyebrow"><Icon name="users" size={14} /> Admin tool</span><h1>People</h1></div>
+        <div><span className="eyebrow"><Icon name="users" size={14} /> {admin ? 'Admin tool' : 'Read only'}</span><h1>People</h1></div>
       </div>
-      <p className="empty">Create accounts for your learners. Share the email and password with them; they can sign in straight away.</p>
+      {admin && <p className="empty">Create accounts for your learners and place them in teams. Share the email and password with them; they can sign in straight away.</p>}
 
-      <form className="card form" onSubmit={add} style={{ marginBottom: '2rem' }}>
-        <label>Full name<input required value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} /></label>
-        <label>Email<input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></label>
-        <label>Temporary password<input type="text" required minLength={8} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="At least 8 characters" /></label>
-        <label>Role
-          <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
-            <option value="LEARNER">Learner</option>
-            <option value="ORG_ADMIN">Administrator</option>
-          </select>
-        </label>
-        <button disabled={busy}><Icon name="plus" size={16} /> Add person</button>
-      </form>
+      {admin && (
+        <form className="card form" onSubmit={add} style={{ marginBottom: '2rem' }}>
+          <label>Full name<input required value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} /></label>
+          <label>Email<input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></label>
+          <label>Temporary password<input type="text" required minLength={8} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="At least 8 characters" /></label>
+          <label>Role
+            <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
+              <option value="LEARNER">Learner</option>
+              <option value="ORG_ADMIN">Administrator</option>
+              <option value="LND_MANAGER">L&amp;D manager (assigns training, views results)</option>
+              <option value="TRAINER">Trainer (views results)</option>
+              <option value="EXAMINER">Examiner (views results)</option>
+              <option value="CERTIFICATION_AUTHORITY">Certification authority</option>
+            </select>
+          </label>
+          <label>Team (optional)<input value={form.team} maxLength={100} onChange={(e) => setForm({ ...form, team: e.target.value })} placeholder="North region sales" /></label>
+          <button disabled={busy}><Icon name="plus" size={16} /> Add person</button>
+        </form>
+      )}
       {err && <p className="error" role="alert">{err}</p>}
       {ok && <p className="ok" role="status">{ok}</p>}
 
       <div className="card table-wrap">
         <table className="table">
-          <thead><tr><th>Name</th><th>Email</th><th>Role</th></tr></thead>
+          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Team</th></tr></thead>
           <tbody>
             {users.map((u) => (
               <tr key={u.id}>
                 <td><div className="who"><span className="avatar">{initials(u.fullName)}</span>{u.fullName}</div></td>
                 <td>{u.email}</td>
                 <td><span className="chip">{prettyRole(u.role)}</span></td>
+                <td>{admin
+                  ? <input className="inline-input" defaultValue={u.team || ''} placeholder="No team" maxLength={100} aria-label={`Team for ${u.fullName}`} onBlur={(e) => saveTeam(u, e.target.value)} />
+                  : (u.team || '-')}</td>
               </tr>
             ))}
           </tbody>

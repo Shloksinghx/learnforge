@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api, session } from '../api.js';
 import { isAdmin } from '../roles.js';
 import Icon from '../Icons.jsx';
@@ -6,12 +7,15 @@ import CourseCard from '../CourseCard.jsx';
 
 export default function Courses({ mine = false }) {
   const admin = isAdmin(session.user);
+  const nav = useNavigate();
   const [courses, setCourses] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [err, setErr] = useState('');
   const [q, setQ] = useState('');
   const [show, setShow] = useState(false);
   const [form, setForm] = useState({ title: '', category: '', description: '' });
+  const [brief, setBrief] = useState('');
+  const [drafting, setDrafting] = useState(false);
 
   const load = () => api(`/api/courses?mine=${mine}`).then(setCourses).catch((e) => setErr(e.message)).finally(() => setLoaded(true));
   useEffect(() => { setLoaded(false); load(); }, [mine]);
@@ -25,6 +29,12 @@ export default function Courses({ mine = false }) {
     e.preventDefault(); setErr('');
     try { await api('/api/courses', { method: 'POST', body: form }); setForm({ title: '', category: '', description: '' }); setShow(false); load(); }
     catch (ex) { setErr(ex.message); }
+  }
+
+  async function draftCourse() {
+    setErr(''); setDrafting(true);
+    try { const r = await api('/api/studio/course-draft', { method: 'POST', body: { brief } }); nav(`/courses/${r.courseId}`); }
+    catch (e) { setErr(e.message); setDrafting(false); }
   }
 
   async function enrol(id) {
@@ -59,6 +69,16 @@ export default function Courses({ mine = false }) {
           <label className="wide">Description<textarea rows="2" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></label>
           <button>Create course</button>
         </form>
+      )}
+      {show && (
+        <div className="card" style={{ marginBottom: '1.5rem' }}>
+          <span className="eyebrow"><Icon name="sparkles" size={14} /> AI Course Creator</span>
+          <p className="empty">Describe a course and the AI writes a first draft of its lessons. It is a starting point: check the facts before publishing. To build from your own documents, create a course and upload them instead.</p>
+          <div className="form">
+            <label className="wide">Brief<textarea rows="2" maxLength={800} value={brief} onChange={(e) => setBrief(e.target.value)} placeholder="Introduction to handling price objections for new sales reps" /></label>
+            <button onClick={draftCourse} disabled={drafting || brief.trim().length < 8}><Icon name="sparkles" size={16} /> {drafting ? 'Writing draft…' : 'Draft course with AI'}</button>
+          </div>
+        </div>
       )}
 
       {loaded && shown.length === 0 && (

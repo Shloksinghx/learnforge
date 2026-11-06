@@ -57,6 +57,13 @@ public class CertificateController {
         return view(service.issue(learner, r.title(), r.score(), r.validityMonths()));
     }
 
+    @GetMapping("/api/certificates/all")
+    public List<CertView> all() {
+        var me = CurrentUser.get();
+        Access.requireCertifier(me);
+        return certs.findByOrgIdOrderByCreatedAtDesc(me.orgId()).stream().map(this::view).toList();
+    }
+
     @GetMapping("/api/certificates/mine")
     public List<CertView> mine() {
         return certs.findByLearnerIdOrderByCreatedAtDesc(CurrentUser.get().userId()).stream().map(this::view).toList();

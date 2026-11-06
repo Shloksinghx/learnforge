@@ -29,12 +29,14 @@ public class QuestionGenerationService {
             Give a short explanation for each answer that refers to the material. Do not repeat questions.
             %s
             Respond with JSON only, in exactly this shape:
-            {"questions":[{"text":"...","options":[%s],"correctIndex":0,
+            {"questions":[{"text":"...","options":[%s],%s,
                            "explanation":"...","difficulty":"EASY|MEDIUM|HARD"}]}
             """;
 
     private static final String MCQ_RULES = "Each question has exactly 4 options and exactly one is correct. Make wrong options plausible.";
     private static final String TF_RULES = "Each question is a statement the learner judges. Use exactly 2 options, \"True\" and \"False\", in that order.";
+    private static final String MULTI_RULES = "Each question has exactly 4 options and TWO or THREE of them are correct. "
+            + "End the question text with \"Select all that apply.\"";
     private static final String CASE_RULES = "Each question starts with a short realistic scenario (2 to 4 sentences) followed by the question, "
             + "and has exactly 4 options with exactly one correct. Test how the learner would apply the material.";
 
@@ -55,6 +57,7 @@ public class QuestionGenerationService {
     public List<Question> generate(Course course, int count, String difficulty, String type, String topic) {
         String kind = type == null ? "MCQ" : type.toUpperCase();
         int wanted = "TRUE_FALSE".equals(kind) ? 2 : 4;
+        boolean multi = "MULTI_SELECT".equals(kind);
 
         StringBuilder material = new StringBuilder();
         for (Lesson l : lessons.findByCourseIdOrderBySortOrderAsc(course.getId())) {
@@ -67,9 +70,11 @@ public class QuestionGenerationService {
         String material30k = material.length() > MAX_MATERIAL_CHARS
                 ? material.substring(0, MAX_MATERIAL_CHARS) : material.toString();
 
-        String rules = "TRUE_FALSE".equals(kind) ? TF_RULES : "CASE_BASED".equals(kind) ? CASE_RULES : MCQ_RULES;
+        String rules = "TRUE_FALSE".equals(kind) ? TF_RULES : "CASE_BASED".equals(kind) ? CASE_RULES
+                : multi ? MULTI_RULES : MCQ_RULES;
+        String correctShape = multi ? "\"correctIndexes\":[0,2]" : "\"correctIndex\":0";
         String optionsShape = wanted == 2 ? "\"True\",\"False\"" : "\"...\",\"...\",\"...\",\"...\"";
-        String system = SYSTEM.formatted(rules, optionsShape);
+        String system = SYSTEM.formatted(rules, optionsShape, correctShape);
 
         String level = "MIXED".equalsIgnoreCase(difficulty) ? "a mix of EASY, MEDIUM and HARD" : difficulty.toUpperCase();
         String focus = topic == null || topic.isBlank() ? "" : "\nFocus only on this topic: " + topic.trim();
@@ -89,7 +94,7 @@ public class QuestionGenerationService {
         List<Question> saved = new ArrayList<>();
         if (arr != null && arr.isArray()) {
             for (JsonNode n : arr) {
-                Question q = toQuestion(course, n, kind, wanted);
+                Question q = toQuestion(course, n, kind, wanted, multi);
                 if (q != null) saved.add(questions.save(q));
                 if (saved.size() >= count) break;
             }
@@ -100,22 +105,33 @@ public class QuestionGenerationService {
         return saved;
     }
 
-    private Question toQuestion(Course course, JsonNode n, String kind, int wanted) {
+    private Question toQuestion(Course course, JsonNode n, String kind, int wanted, boolean multi) {
         String text = n.path("text").asText("").trim();
         JsonNode opts = n.path("options");
-        int correct = n.path("correctIndex").asInt(-1);
-        if (text.isEmpty() || !opts.isArray() || opts.size() != wanted || correct < 0 || correct >= wanted) return null;
+        List<Integer> correctOld = new ArrayList<>();
+        if (multi) {
+            for (JsonNode c : n.path("correctIndexes")) {
+                int v = c.asInt(-1);
+                if (v >= 0 && v < wanted && !correctOld.contains(v)) correctOld.add(v);
+            }
+            if (correctOld.size() < 2 || correctOld.size() >= wanted) return null;
+        } else {
+            int c = n.path("correctIndex").asInt(-1);
+            if (c < 0 || c >= wanted) return null;
+            correctOld.add(c);
+        }
+        if (text.isEmpty() || !opts.isArray() || opts.size() != wanted) return null;
 
         List<Integer> order = new ArrayList<>();
         for (int i = 0; i < wanted; i++) order.add(i);
         if (wanted > 2) Collections.shuffle(order); // models tend to put the answer first
         List<String> shuffled = new ArrayList<>();
-        int newCorrect = 0;
+        List<Integer> newCorrect = new ArrayList<>();
         for (int i = 0; i < wanted; i++) {
             String o = opts.get(order.get(i)).asText("").trim();
             if (o.isEmpty()) return null;
             shuffled.add(o);
-            if (order.get(i) == correct) newCorrect = i;
+            if (correctOld.contains(order.get(i))) newCorrect.add(i);
         }
         String level = n.path("difficulty").asText("MEDIUM").toUpperCase();
         Question q = new Question();
@@ -127,7 +143,8 @@ public class QuestionGenerationService {
         } catch (Exception e) {
             return null;
         }
-        q.setCorrectIndex(newCorrect);
+        q.setCorrectIndex(newCorrect.get(0));
+        q.setCorrectJson(multi ? QuestionScoring.toJson(newCorrect) : null);
         q.setExplanation(n.path("explanation").asText(""));
         q.setDifficulty(LEVELS.contains(level) ? level : "MEDIUM");
         q.setKind(kind);

@@ -25,6 +25,8 @@ public class Simulation {
     @Column(name = "started_at") private Instant createdAt;
     @Column(name = "ended_at") private Instant endedAt;
 
+    @Column(name = "scenario_id") private UUID scenarioId;
+
     @PrePersist
     void onCreate() {
         if (createdAt == null) createdAt = Instant.now();

@@ -66,6 +66,24 @@ export default function Insights() {
         )}
       </section>
 
+      <section style={{ marginTop: '2rem' }}>
+        <h2>Teams</h2>
+        {o.teams.length === 0 && <div className="empty-state"><p>No learners yet. Add people and give them a team on the People page.</p></div>}
+        {o.teams.length > 0 && (
+          <div className="card table-wrap">
+            <table className="table">
+              <thead><tr><th>Team</th><th>Learners</th><th>Avg test score</th><th>XP</th>{o.competencies.map((c) => <th key={c.key}>{c.label}</th>)}</tr></thead>
+              <tbody>{[...o.teams].sort((a, b) => b.xp - a.xp).map((t) => (
+                <tr key={t.team}><td><b>{t.team}</b></td><td>{t.learners}</td><td>{t.averageScore ? `${t.averageScore}%` : '-'}</td><td>{t.xp}</td>
+                  {t.competencies.map((c) => <td key={c.key} style={{ color: tone(c.score) }}>{c.score == null ? '-' : `${c.score}%`}</td>)}
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        )}
+        <p className="empty">Teams are ranked by total XP, which makes a simple team leaderboard.</p>
+      </section>
+
       <div className="grid two" style={{ marginTop: '2rem' }}>
         <section>
           <h2>Certificates expiring in 30 days</h2>

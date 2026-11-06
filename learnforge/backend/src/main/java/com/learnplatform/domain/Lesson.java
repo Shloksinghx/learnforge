@@ -21,6 +21,9 @@ public class Lesson {
     @Column(name = "sort_order") private int sortOrder;
     @Column(name = "created_at") private Instant createdAt;
 
+    @Column(name = "module_title") private String moduleTitle;
+    @Column(name = "video_url") private String videoUrl;
+
     @PrePersist
     void onCreate() {
         if (createdAt == null) createdAt = Instant.now();

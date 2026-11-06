@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { api } from '../api.js';
+import { api, upload, download } from '../api.js';
 import Icon from '../Icons.jsx';
 
 const L = ['A', 'B', 'C', 'D'];
-const KIND = { MCQ: 'Multiple choice', TRUE_FALSE: 'True or false', CASE_BASED: 'Case study' };
+const KIND = { MCQ: 'Multiple choice', TRUE_FALSE: 'True or false', CASE_BASED: 'Case study', MULTI_SELECT: 'Select all that apply' };
 
 function Q({ q, busy, onApprove, onDelete }) {
   return (
@@ -17,7 +17,7 @@ function Q({ q, busy, onApprove, onDelete }) {
       <p><b>{q.text}</b></p>
       <ul className="opts">
         {q.options.map((o, i) => (
-          <li key={i} className={i === q.correctIndex ? 'correct' : ''}><span className="letter">{L[i]}</span>{o}{i === q.correctIndex && <small style={{ marginLeft: 'auto' }}>correct</small>}</li>
+          <li key={i} className={(q.correctIndexes || [q.correctIndex]).includes(i) ? 'correct' : ''}><span className="letter">{L[i]}</span>{o}{(q.correctIndexes || [q.correctIndex]).includes(i) && <small style={{ marginLeft: 'auto' }}>correct</small>}</li>
         ))}
       </ul>
       {q.explanation && <p className="empty">{q.explanation}</p>}
@@ -40,6 +40,8 @@ export default function Studio() {
   const [difficulty, setDifficulty] = useState('MIXED');
   const [type, setType] = useState('MCQ');
   const [topic, setTopic] = useState('');
+  const [msg, setMsg] = useState('');
+  const fileRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
@@ -52,6 +54,17 @@ export default function Studio() {
   const approve = (id) => run(async () => { await api(`/api/questions/${id}/approve`, { method: 'POST' }); await loadQs(); });
   const remove = (id) => run(async () => { await api(`/api/questions/${id}`, { method: 'DELETE' }); await loadQs(); });
   const approveAll = () => run(async () => { await api(`/api/courses/${courseId}/questions/approve-all`, { method: 'POST' }); await loadQs(); });
+
+  const onImport = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    run(async () => {
+      const r = await upload(`/api/courses/${courseId}/questions/import`, file);
+      setMsg(`Imported ${r.imported} questions as drafts${r.skipped ? `, skipped ${r.skipped} rows that were incomplete` : ''}.`);
+      await loadQs();
+    });
+  };
 
   const drafts = qs.filter((q) => q.status === 'DRAFT');
   const approved = qs.filter((q) => q.status === 'APPROVED');
@@ -82,13 +95,24 @@ export default function Studio() {
         </label>
         <label>Question type
           <select value={type} onChange={(e) => setType(e.target.value)}>
-            <option value="MCQ">Multiple choice</option><option value="TRUE_FALSE">True or false</option><option value="CASE_BASED">Case study</option>
+            <option value="MCQ">Multiple choice</option><option value="TRUE_FALSE">True or false</option><option value="CASE_BASED">Case study</option><option value="MULTI_SELECT">Select all that apply</option>
           </select>
         </label>
         <label className="wide">Focus topic (optional)
           <input value={topic} maxLength={200} onChange={(e) => setTopic(e.target.value)} placeholder="For example: handling price objections" />
         </label>
         <button onClick={generate} disabled={busy || !courseId}><Icon name="sparkles" size={16} /> {busy ? 'Working…' : 'Generate with AI'}</button>
+      </div>
+
+      <div className="card" style={{ marginBottom: '2rem' }}>
+        <span className="eyebrow"><Icon name="upload" size={14} /> Import an existing question bank</span>
+        <p className="empty">Upload a CSV or Excel file with columns: question, optionA to optionD, correct (for example B, or A,C for several), explanation, difficulty. Imported questions arrive as drafts for review.</p>
+        <div className="row" style={{ justifyContent: 'flex-start', marginBottom: 0 }}>
+          <input ref={fileRef} type="file" accept=".csv,.xlsx" hidden onChange={onImport} />
+          <button onClick={() => fileRef.current?.click()} disabled={busy || !courseId}><Icon name="upload" size={16} /> Choose file</button>
+          <button className="ghost" onClick={() => download('/api/questions/import-template.csv', 'question-template.csv').catch((e) => setErr(e.message))}><Icon name="download" size={16} /> Download template</button>
+        </div>
+        {msg && <p className="ok" role="status">{msg}</p>}
       </div>
 
       {!courseId && <div className="empty-state"><Icon name="sparkles" size={32} /><p>Choose a course above to start.</p></div>}

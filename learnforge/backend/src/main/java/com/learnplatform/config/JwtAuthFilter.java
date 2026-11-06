@@ -30,10 +30,15 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 var auth = new UsernamePasswordAuthenticationToken(user, null,
                         List.of(new SimpleGrantedAuthority("ROLE_" + user.role().name())));
                 SecurityContextHolder.getContext().setAuthentication(auth);
+                OrgContext.set(user.orgId());
             } catch (Exception ignored) {
                 SecurityContextHolder.clearContext();
             }
         }
-        chain.doFilter(req, res);
+        try {
+            chain.doFilter(req, res);
+        } finally {
+            OrgContext.clear();
+        }
     }
 }
