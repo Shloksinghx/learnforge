@@ -142,7 +142,7 @@ export default function CourseDetail() {
         {course.shared && <span className="chip chip-glow">Shared on marketplace</span>}
         <h1>{course.title}</h1>
         <p>{course.description}</p>
-        <div className="meta" style={{ color: '#e4e8ff' }}>
+        <div className="meta" style={{ color: 'inherit' }}>
           <span><Icon name="book" size={14} /> {course.lessonCount} lessons</span>
           <span><Icon name="target" size={14} /> {course.questionCount} test questions</span>
         </div>

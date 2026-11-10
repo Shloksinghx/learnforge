@@ -1,8 +1,8 @@
-/** Stable gradient per course title, so each course gets its own look. */
+/** A stable, soft tint per course title. The colours are computed in CSS from --h, so light and dark mode both work. */
 export function coverStyle(title = '') {
   let h = 0;
   for (const ch of title) h = (h * 31 + ch.charCodeAt(0)) % 360;
-  return { background: `linear-gradient(135deg, hsl(${h} 78% 52%), hsl(${(h + 60) % 360} 85% 46%))` };
+  return { '--h': h };
 }
 
 export const initials = (name = '') =>

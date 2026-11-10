@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, session } from '../api.js';
 import Icon from '../Icons.jsx';
-import ScoreRing from '../ScoreRing.jsx';
 
 export default function Login() {
   const nav = useNavigate();
@@ -35,11 +34,6 @@ export default function Login() {
           <li><span className="stat-icon"><Icon name="mic" /></span> Voice and text role-play with AI personas</li>
           <li><span className="stat-icon"><Icon name="award" /></span> Automatic scoring and verifiable certificates</li>
         </ul>
-        <div className="mock" aria-hidden="true">
-          <div className="msg"><span className="avatar">AI</span><div className="bubble">You have two minutes. Why should I consider your product?</div></div>
-          <div className="msg me"><span className="avatar">You</span><div className="bubble">Because the trial data shows a clear benefit for your patients.</div></div>
-          <div className="card mock-score"><ScoreRing value={86} size={64} /><div><b>Great objection handling</b><br /><small>Product knowledge 86%</small></div></div>
-        </div>
       </section>
 
       <form className="card auth-card" onSubmit={submit}>

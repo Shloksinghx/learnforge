@@ -1,8 +1,8 @@
-import { Navigate, NavLink, Route, Routes, Link, useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Navigate, NavLink, Route, Routes, Link, useLocation, useNavigate } from 'react-router-dom';
 import { session } from './api.js';
 import { isAdmin, isManager, isViewer, isCertifier } from './roles.js';
 import { initials, prettyRole } from './ui.js';
-import Icon from './Icons.jsx';
 import NotificationBell from './NotificationBell.jsx';
 import Login from './pages/Login.jsx';
 import Home from './pages/Home.jsx';
@@ -29,35 +29,56 @@ function Guard({ allow, children }) {
   return allow(session.user) ? children : <Navigate to="/" replace />;
 }
 
+function Manage({ items }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const { pathname } = useLocation();
+  useEffect(() => setOpen(false), [pathname]);
+  useEffect(() => {
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, []);
+  if (items.length === 0) return null;
+  const active = items.some((i) => pathname.startsWith(i.to));
+  return (
+    <div className="menu" ref={ref}>
+      <button className={active ? 'on' : ''} aria-expanded={open} aria-haspopup="true" onClick={() => setOpen(!open)}>Manage &#9662;</button>
+      {open && <div className="menu-panel">{items.map((i) => <NavLink key={i.to} to={i.to}>{i.label}</NavLink>)}</div>}
+    </div>
+  );
+}
+
 function Shell({ children }) {
   const nav = useNavigate();
   const user = session.user;
+  const manage = [
+    isAdmin(user) && { to: '/studio', label: 'AI Question Studio' },
+    isViewer(user) && { to: '/insights', label: 'Insights' },
+    isViewer(user) && { to: '/people', label: 'People' },
+    isCertifier(user) && { to: '/certificates', label: 'Certificates' },
+    isAdmin(user) && { to: '/marketplace', label: 'Marketplace' },
+    isAdmin(user) && { to: '/plan', label: 'Plan and usage' },
+  ].filter(Boolean);
   return (
     <>
       <header className="bar">
-        <Link to="/" className="brand"><span className="brand-mark"><Icon name="sparkles" size={19} /></span>LearnForge</Link>
+        <Link to="/" className="brand">LearnForge</Link>
         <nav className="tabs" aria-label="Main">
-          <NavLink to="/" end><Icon name="home" size={16} /> Home</NavLink>
-          <NavLink to="/my-courses"><Icon name="book" size={16} /> My courses</NavLink>
-          <NavLink to="/courses"><Icon name="grid" size={16} /> Courses</NavLink>
-          <NavLink to="/paths"><Icon name="route" size={16} /> Paths</NavLink>
-          <NavLink to="/simulations"><Icon name="chat" size={16} /> Simulations</NavLink>
-          <NavLink to="/leaderboard"><Icon name="trophy" size={16} /> Leaderboard</NavLink>
-          {isViewer(user) && <NavLink to="/insights"><Icon name="chart" size={16} /> Insights</NavLink>}
-          {isAdmin(user) && <NavLink to="/studio"><Icon name="sparkles" size={16} /> AI Question Studio</NavLink>}
-          {isViewer(user) && <NavLink to="/people"><Icon name="users" size={16} /> People</NavLink>}
-          {isCertifier(user) && <NavLink to="/certificates"><Icon name="award" size={16} /> Certificates</NavLink>}
-          {isAdmin(user) && <NavLink to="/marketplace"><Icon name="store" size={16} /> Marketplace</NavLink>}
-          {isAdmin(user) && <NavLink to="/plan"><Icon name="card" size={16} /> Plan</NavLink>}
+          <NavLink to="/" end>Home</NavLink>
+          <NavLink to="/my-courses">My courses</NavLink>
+          <NavLink to="/courses">Courses</NavLink>
+          <NavLink to="/paths">Paths</NavLink>
+          <NavLink to="/simulations">Simulations</NavLink>
+          <NavLink to="/leaderboard">Leaderboard</NavLink>
+          <Manage items={manage} />
         </nav>
         <NotificationBell />
         <div className="user-chip">
           <span className="avatar">{initials(user?.fullName)}</span>
           <div><b>{user?.fullName}</b><small>{prettyRole(user?.role)}</small></div>
         </div>
-        <button className="ghost icon-btn" aria-label="Sign out" title="Sign out" onClick={() => { session.clear(); nav('/login'); }}>
-          <Icon name="logout" size={18} />
-        </button>
+        <button className="ghost" onClick={() => { session.clear(); nav('/login'); }}>Sign out</button>
       </header>
       <main className="page">{children}</main>
     </>
